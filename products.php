@@ -16,6 +16,54 @@ try {
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
+    // Process checkout form submission
+    if(isset($_POST['checkout']) && isset($_POST['cart_data'])) {
+        $cartData = json_decode($_POST['cart_data'], true);
+        
+        if(!empty($cartData)) {
+            // Start transaction
+            $conn->beginTransaction();
+            
+            try {
+                // Create new order
+                $customer_id = 1; // Default customer ID until authentication is implemented
+                
+                $order_sql = "INSERT INTO `Order` (Customer_ID) VALUES (?)";
+                $order_stmt = $conn->prepare($order_sql);
+                $order_stmt->execute([$customer_id]);
+                
+                // Get the new order ID
+                $order_id = $conn->lastInsertId();
+                
+                // Insert order items
+                $item_sql = "INSERT INTO OrderItem (Product_ID, Order_ID) VALUES (?, ?)";
+                $item_stmt = $conn->prepare($item_sql);
+                
+                foreach($cartData as $item) {
+                    // Insert each product in the cart, repeating for quantity
+                    for($i = 0; $i < $item['quantity']; $i++) {
+                        $item_stmt->execute([$item['id'], $order_id]);
+                    }
+                    
+                    // Update product inventory
+                    $update_sql = "UPDATE Product SET Quantity = Quantity - ? WHERE ID = ?";
+                    $update_stmt = $conn->prepare($update_sql);
+                    $update_stmt->execute([$item['quantity'], $item['id']]);
+                }
+                
+                // Commit transaction
+                $conn->commit();
+                
+                // Set success message
+                $success_message = "Order #" . $order_id . " has been placed successfully!";
+            } catch(PDOException $e) {
+                // Rollback transaction in case of error
+                $conn->rollBack();
+                $error_message = "Error processing order: " . $e->getMessage();
+            }
+        }
+    }
+    
     // Prepare query to retrieve products
     $sql = "SELECT ID, Name, Quantity, Sell_Price, Category 
             FROM Product 
@@ -112,7 +160,7 @@ try {
         }
         .add-to-cart {
             background-color: #4CAF50;
-            color: white;
+            color: black;
             border: none;
             padding: 8px 16px;
             border-radius: 3px;
@@ -223,12 +271,79 @@ try {
         #cart-toggle:hover {
             background-color: #ffd633;
         }
+        /* Success message styling */
+        .success-message {
+            background-color: #dff0d8;
+            color: #3c763d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #d6e9c6;
+        }
+        /* Error message styling */
+        .error-message {
+            background-color: #f2dede;
+            color: #a94442;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ebccd1;
+        }
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 400px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .modal h2 {
+            color: #4CAF50;
+            margin-top: 0;
+        }
+        .modal p {
+            margin-bottom: 20px;
+        }
+        .modal button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <button id="cart-toggle">
         <i class="fa fa-shopping-cart"></i> Cart <span id="cart-badge" class="cart-badge">0</span>
     </button>
+    
+    <!-- Success/Error Message Display -->
+    <?php if(isset($success_message)): ?>
+    <div class="success-message container">
+        <?php echo $success_message; ?>
+    </div>
+    <?php endif; ?>
+    
+    <?php if(isset($error_message)): ?>
+    <div class="error-message container">
+        <?php echo $error_message; ?>
+    </div>
+    <?php endif; ?>
     
     <div id="cart-container" style="display: none;">
         <h3>Shopping Cart</h3>
@@ -238,7 +353,28 @@ try {
         <div class="cart-total">Total: $<span id="cart-total">0.00</span></div>
         <div class="cart-buttons">
             <button class="clear-btn" onclick="clearCart()">Clear Cart</button>
-            <button class="checkout-btn" onclick="checkout()">Checkout</button>
+            <button class="checkout-btn" onclick="checkoutConfirm()">Checkout</button>
+        </div>
+    </div>
+    
+    <!-- Checkout confirmation modal -->
+    <div id="checkout-modal" class="modal">
+        <div class="modal-content">
+            <h2>Confirm Order</h2>
+            <p>Are you sure you want to place this order?</p>
+            <div>
+                <button onclick="checkout()">Place Order</button>
+                <button onclick="closeModal()" style="background-color: #f44336; margin-left: 10px;">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Success modal -->
+    <div id="success-modal" class="modal">
+        <div class="modal-content">
+            <h2>Order Successful!</h2>
+            <p id="success-message">Your order has been placed successfully.</p>
+            <button onclick="closeSuccessModal()">Continue Shopping</button>
         </div>
     </div>
 
@@ -324,6 +460,12 @@ try {
             <p>Total Products: <?php echo isset($result) ? count($result) : 0; ?></p>
         </div>
     </div>
+
+    <!-- Checkout form (hidden) -->
+    <form id="checkout-form" method="POST" action="" style="display: none;">
+        <input type="hidden" name="checkout" value="1">
+        <input type="hidden" name="cart_data" id="cart_data" value="">
+    </form>
 
     <!-- Add Font Awesome for cart icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -412,16 +554,42 @@ try {
             }
         }
         
-        // Function to checkout
+        // Function to open checkout confirmation modal
+        function checkoutConfirm() {
+            if (cart.length === 0) {
+                alert('Your cart is empty!');
+                return;
+            }
+            
+            document.getElementById('checkout-modal').style.display = 'block';
+        }
+        
+        // Function to close checkout modal
+        function closeModal() {
+            document.getElementById('checkout-modal').style.display = 'none';
+        }
+        
+        // Function to close success modal and refresh the page
+        function closeSuccessModal() {
+            document.getElementById('success-modal').style.display = 'none';
+            window.location.reload();
+        }
+        
+        // Function to checkout (submit the form)
         function checkout() {
             if (cart.length === 0) {
                 alert('Your cart is empty!');
                 return;
             }
             
-            alert('Proceeding to checkout...');
-            // Here you would normally redirect to a checkout page
-            // window.location.href = 'checkout.php';
+            // Close the confirmation modal
+            closeModal();
+            
+            // Set the cart data in the hidden form field
+            document.getElementById('cart_data').value = JSON.stringify(cart);
+            
+            // Submit the form
+            document.getElementById('checkout-form').submit();
         }
         
         // Function to update cart display
@@ -491,6 +659,21 @@ try {
                 input.value = currentVal - 1;
             }
         }
+        
+        // Check if there's a PHP success message and show success modal
+        <?php if(isset($success_message)): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Clear the cart after successful order
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartDisplay();
+            updateCartBadge();
+            
+            // Show success modal with the message
+            document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
+            document.getElementById('success-modal').style.display = 'block';
+        });
+        <?php endif; ?>
     </script>
 </body>
 </html>

@@ -59,6 +59,5 @@
     <li><a href="/products.php" class="<?= $currentPage === 'products.php' ? 'active' : '' ?>">Products</a></li>
     <li><a href="/orders.php" class="<?= $currentPage === 'orders.php' ? 'active' : '' ?>">Orders</a></li>
     <li><a href="/inventory.php" class="<?= $currentPage === 'inventory.php' ? 'active' : '' ?>">Inventory</a></li>
-    <!-- Shopping Cart link removed as requested -->
   </ul>
 </nav>
