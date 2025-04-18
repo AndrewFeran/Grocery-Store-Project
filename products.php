@@ -4,11 +4,18 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Start session for order tracking
+session_start();
+
 // Database connection parameters
 $servername = "localhost";
 $username = "root";
 $password = "mynewpassword";
 $dbname = "grocery_store";
+
+// Initialize variables
+$success_message = null;
+$error_message = null;
 
 try {
     // Create connection using PDO
@@ -16,8 +23,8 @@ try {
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Process checkout form submission
-    if(isset($_POST['checkout']) && isset($_POST['cart_data'])) {
+    // Process checkout form submission - only if POST data exists and no success message in session
+    if(isset($_POST['checkout']) && isset($_POST['cart_data']) && !isset($_SESSION['order_success'])) {
         $cartData = json_decode($_POST['cart_data'], true);
         
         if(!empty($cartData)) {
@@ -39,29 +46,43 @@ try {
                 $item_sql = "INSERT INTO OrderItem (Product_ID, Order_ID) VALUES (?, ?)";
                 $item_stmt = $conn->prepare($item_sql);
                 
+                // Update product inventory
+                $update_sql = "UPDATE Product SET Quantity = Quantity - ? WHERE ID = ?";
+                $update_stmt = $conn->prepare($update_sql);
+                
                 foreach($cartData as $item) {
-                    // Insert each product in the cart, repeating for quantity
+                    // Insert each product in the cart
                     for($i = 0; $i < $item['quantity']; $i++) {
                         $item_stmt->execute([$item['id'], $order_id]);
                     }
                     
-                    // Update product inventory
-                    $update_sql = "UPDATE Product SET Quantity = Quantity - ? WHERE ID = ?";
-                    $update_stmt = $conn->prepare($update_sql);
+                    // Update product inventory - reduce by quantity ordered
                     $update_stmt->execute([$item['quantity'], $item['id']]);
                 }
                 
                 // Commit transaction
                 $conn->commit();
                 
-                // Set success message
-                $success_message = "Order #" . $order_id . " has been placed successfully!";
+                // Set success message in session
+                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully!";
+                
+                // Redirect to prevent form resubmission
+                header("Location: " . $_SERVER['PHP_SELF']);
+                exit();
+                
             } catch(PDOException $e) {
                 // Rollback transaction in case of error
                 $conn->rollBack();
                 $error_message = "Error processing order: " . $e->getMessage();
             }
         }
+    }
+    
+    // Check for success message in session
+    if(isset($_SESSION['order_success'])) {
+        $success_message = $_SESSION['order_success'];
+        // Clear the session variable to prevent showing the message again on refresh
+        unset($_SESSION['order_success']);
     }
     
     // Prepare query to retrieve products
@@ -325,6 +346,16 @@ try {
             border-radius: 4px;
             cursor: pointer;
         }
+        /* Disabled state for buttons */
+        .disabled {
+            opacity: 0.5;
+            cursor: not-allowed !important;
+        }
+        /* Out of stock styling */
+        .out-of-stock {
+            color: #a94442;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -396,6 +427,42 @@ try {
             $cat_stmt = $conn->prepare($cat_query);
             $cat_stmt->execute();
             $categories = $cat_stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Filter by category if selected
+            $category_filter = isset($_GET['category']) && !empty($_GET['category']) ? $_GET['category'] : null;
+            $search_filter = isset($_GET['search']) && !empty($_GET['search']) ? $_GET['search'] : null;
+            
+            // Prepare query with filters
+            if ($category_filter || $search_filter) {
+                $sql = "SELECT ID, Name, Quantity, Sell_Price, Category 
+                        FROM Product 
+                        WHERE 1=1 ";
+                        
+                if ($category_filter) {
+                    $sql .= " AND Category = :category";
+                }
+                
+                if ($search_filter) {
+                    $sql .= " AND Name LIKE :search";
+                }
+                
+                $sql .= " ORDER BY Name";
+                
+                $stmt = $conn->prepare($sql);
+                
+                if ($category_filter) {
+                    $stmt->bindParam(':category', $category_filter);
+                }
+                
+                if ($search_filter) {
+                    $search_param = "%" . $search_filter . "%";
+                    $stmt->bindParam(':search', $search_param);
+                }
+                
+                $stmt->execute();
+                $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            
         } catch(PDOException $e) {
             echo "<p style='color:red'>Error loading filters: " . $e->getMessage() . "</p>";
         }
@@ -423,7 +490,7 @@ try {
                 <tr>
                     <th>Product Name</th>
                     <th>Category</th>
-                    <th>Quantity</th>
+                    <th>In Stock</th>
                     <th>Price</th>
                     <th>Action</th>
                 </tr>
@@ -432,20 +499,34 @@ try {
                 <?php
                 if (!empty($result)) {
                     foreach($result as $row) {
-                        $row_class = ($row["Quantity"] < 5) ? "low-stock" : "";
+                        $row_class = ($row["Quantity"] < 5 && $row["Quantity"] > 0) ? "low-stock" : "";
+                        $out_of_stock = $row["Quantity"] <= 0;
                         
                         echo "<tr class='$row_class'>";
                         echo "<td>" . htmlspecialchars($row["Name"]) . "</td>";
                         echo "<td>" . htmlspecialchars($row["Category"]) . "</td>";
-                        echo "<td>" . $row["Quantity"] . "</td>";
+                        
+                        // Show stock status
+                        if ($out_of_stock) {
+                            echo "<td class='out-of-stock'>Out of stock</td>";
+                        } else {
+                            echo "<td>" . $row["Quantity"] . "</td>";
+                        }
+                        
                         echo "<td>$" . number_format($row["Sell_Price"], 2) . "</td>";
                         echo "<td>";
-                        echo "<div class='quantity-control'>";
-                        echo "<button onclick='decrementQuantity(\"qty-{$row["ID"]}\")'>-</button>";
-                        echo "<input type='number' id='qty-{$row["ID"]}' min='1' value='1' max='{$row["Quantity"]}'>";
-                        echo "<button onclick='incrementQuantity(\"qty-{$row["ID"]}\", {$row["Quantity"]})'>+</button>";
-                        echo "<button class='add-to-cart' onclick='addToCart({$row["ID"]}, \"".htmlspecialchars($row["Name"])."\", {$row["Sell_Price"]}, document.getElementById(\"qty-{$row["ID"]}\").value, {$row["Quantity"]})'>Add to Cart</button>";
-                        echo "</div>";
+                        
+                        if ($out_of_stock) {
+                            echo "<button class='add-to-cart disabled' disabled>Out of Stock</button>";
+                        } else {
+                            echo "<div class='quantity-control'>";
+                            echo "<button onclick='decrementQuantity(\"qty-{$row["ID"]}\")'>-</button>";
+                            echo "<input type='number' id='qty-{$row["ID"]}' min='1' value='1' max='{$row["Quantity"]}'>";
+                            echo "<button onclick='incrementQuantity(\"qty-{$row["ID"]}\", {$row["Quantity"]})'>+</button>";
+                            echo "<button class='add-to-cart' onclick='addToCart({$row["ID"]}, \"".htmlspecialchars($row["Name"])."\", {$row["Sell_Price"]}, document.getElementById(\"qty-{$row["ID"]}\").value, {$row["Quantity"]})'>Add to Cart</button>";
+                            echo "</div>";
+                        }
+                        
                         echo "</td>";
                         echo "</tr>";
                     }
@@ -478,6 +559,19 @@ try {
         document.addEventListener('DOMContentLoaded', function() {
             updateCartDisplay();
             updateCartBadge();
+            
+            // Show success modal if there's a success message
+            <?php if(isset($success_message)): ?>
+            // Clear the cart after successful order
+            cart = [];
+            localStorage.setItem('cart', JSON.stringify(cart));
+            updateCartDisplay();
+            updateCartBadge();
+            
+            // Show success modal with the message
+            document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
+            document.getElementById('success-modal').style.display = 'block';
+            <?php endif; ?>
         });
         
         // Toggle cart visibility
@@ -572,7 +666,6 @@ try {
         // Function to close success modal and refresh the page
         function closeSuccessModal() {
             document.getElementById('success-modal').style.display = 'none';
-            window.location.reload();
         }
         
         // Function to checkout (submit the form)
@@ -659,21 +752,6 @@ try {
                 input.value = currentVal - 1;
             }
         }
-        
-        // Check if there's a PHP success message and show success modal
-        <?php if(isset($success_message)): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Clear the cart after successful order
-            cart = [];
-            localStorage.setItem('cart', JSON.stringify(cart));
-            updateCartDisplay();
-            updateCartBadge();
-            
-            // Show success modal with the message
-            document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
-            document.getElementById('success-modal').style.display = 'block';
-        });
-        <?php endif; ?>
     </script>
 </body>
 </html>
