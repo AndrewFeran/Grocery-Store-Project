@@ -114,9 +114,12 @@ try {
             background-color: #4CAF50;
             color: white;
             border: none;
-            padding: 5px 10px;
+            padding: 8px 16px;
             border-radius: 3px;
             cursor: pointer;
+            min-width: 110px; /* Ensures button has enough space */
+            text-align: center;
+            white-space: nowrap; /* Keeps text on one line */
         }
         .add-to-cart:hover {
             background-color: #45a049;
