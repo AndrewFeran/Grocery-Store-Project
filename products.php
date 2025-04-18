@@ -47,12 +47,12 @@ try {
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             background-color: #f4f4f4;
         }
         .container {
             max-width: 1200px;
-            margin: 0 auto;
+            margin: 20px auto;
             background-color: white;
             padding: 20px;
             border-radius: 5px;
@@ -61,6 +61,7 @@ try {
         h1 {
             color: #333;
             text-align: center;
+            margin-top: 0;
         }
         table {
             width: 100%;
@@ -122,7 +123,7 @@ try {
         }
         #cart-container {
             position: fixed;
-            top: 20px;
+            top: 80px; /* Adjusted to be below navbar */
             right: 20px;
             background-color: white;
             padding: 15px;
@@ -130,6 +131,8 @@ try {
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             max-width: 300px;
             z-index: 1000;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         #cart-items {
             margin-top: 10px;
@@ -202,21 +205,26 @@ try {
         /* Cart toggle button */
         #cart-toggle {
             position: fixed;
-            top: 20px;
+            top: 15px;
             right: 20px;
-            background-color: #4CAF50;
-            color: white;
+            background-color: #ffcc00;
+            color: #333;
             border: none;
             padding: 10px 15px;
             border-radius: 5px;
             cursor: pointer;
             z-index: 1001;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #cart-toggle:hover {
+            background-color: #ffd633;
         }
     </style>
 </head>
 <body>
     <button id="cart-toggle">
-        Cart <span id="cart-badge" class="cart-badge">0</span>
+        <i class="fa fa-shopping-cart"></i> Cart <span id="cart-badge" class="cart-badge">0</span>
     </button>
     
     <div id="cart-container" style="display: none;">
@@ -314,6 +322,9 @@ try {
         </div>
     </div>
 
+    <!-- Add Font Awesome for cart icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
     <script>
         // Initialize cart from localStorage or as empty array
         let cart = JSON.parse(localStorage.getItem('cart')) || [];
