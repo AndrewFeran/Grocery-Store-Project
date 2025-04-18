@@ -50,6 +50,9 @@ try {
                 $update_sql = "UPDATE Product SET Quantity = Quantity - ? WHERE ID = ?";
                 $update_stmt = $conn->prepare($update_sql);
                 
+                // Calculate total sale amount to update store balance
+                $total_sale_amount = 0;
+                
                 foreach($cartData as $item) {
                     // Insert each product in the cart
                     for($i = 0; $i < $item['quantity']; $i++) {
@@ -58,13 +61,27 @@ try {
                     
                     // Update product inventory - reduce by quantity ordered
                     $update_stmt->execute([$item['quantity'], $item['id']]);
+                    
+                    // Add to total sale amount
+                    $total_sale_amount += $item['price'] * $item['quantity'];
                 }
+                
+                // Update store balance
+                $update_balance_sql = "UPDATE Store SET Balance = Balance + ? WHERE ID = 1";
+                $update_balance_stmt = $conn->prepare($update_balance_sql);
+                $update_balance_stmt->execute([$total_sale_amount]);
+                
+                // Get the current store balance
+                $balance_sql = "SELECT Balance FROM Store WHERE ID = 1";
+                $balance_stmt = $conn->prepare($balance_sql);
+                $balance_stmt->execute();
+                $current_balance = $balance_stmt->fetchColumn();
                 
                 // Commit transaction
                 $conn->commit();
                 
                 // Set success message in session
-                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully!";
+                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully! Store balance updated to $" . number_format($current_balance, 2);
                 
                 // Redirect to prevent form resubmission
                 header("Location: " . $_SERVER['PHP_SELF']);
@@ -356,6 +373,19 @@ try {
             color: #a94442;
             font-weight: bold;
         }
+        /* Store balance styling */
+        .store-info {
+            background-color: #eaf7fd;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #b8e1f3;
+            text-align: right;
+        }
+        .store-balance {
+            font-weight: bold;
+            color: #0077b6;
+        }
     </style>
 </head>
 <body>
@@ -411,6 +441,22 @@ try {
 
     <div class="container">
         <h1>Products</h1>
+        
+        <?php
+        // Get current store balance
+        try {
+            $balance_sql = "SELECT Balance FROM Store WHERE ID = 1";
+            $balance_stmt = $conn->prepare($balance_sql);
+            $balance_stmt->execute();
+            $current_balance = $balance_stmt->fetchColumn();
+            
+            echo '<div class="store-info">';
+            echo '<span class="store-balance">Store Balance: $' . number_format($current_balance, 2) . '</span>';
+            echo '</div>';
+        } catch(PDOException $e) {
+            // Silent fail - just don't show the balance
+        }
+        ?>
         
         <div class="search-container">
             <form action="" method="GET">
