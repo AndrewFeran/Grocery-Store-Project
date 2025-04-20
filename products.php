@@ -7,33 +7,11 @@ ini_set('display_errors', 1);
 // Start session for order tracking
 session_start();
 
-// Process form submissions with their own cart data
-if((isset($_POST['register_customer']) || isset($_POST['find_customer'])) && isset($_POST['cart_data_json'])) {
+// Process cart data from form submissions
+if (isset($_POST['cart_data_json']) && !empty($_POST['cart_data_json'])) {
     // Store the cart data in session
     $_SESSION['preserved_cart'] = $_POST['cart_data_json'];
-}
-
-// Handle database logic and other PHP operations...
-
-// Then, before the <!DOCTYPE html> tag, add this script to restore cart
-if(isset($_SESSION['preserved_cart'])) {
-    echo "<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Restore cart from session
-        try {
-            const preservedCart = JSON.parse('" . addslashes($_SESSION['preserved_cart']) . "');
-            if(preservedCart && Array.isArray(preservedCart)) {
-                localStorage.setItem('cart', JSON.stringify(preservedCart));
-                console.log('Cart restored from session');
-            }
-        } catch(e) {
-            console.error('Error restoring cart:', e);
-        }
-    });
-    </script>";
-    
-    // Clear the session variable
-    unset($_SESSION['preserved_cart']);
+    error_log('Cart data preserved in session: ' . substr($_POST['cart_data_json'], 0, 100) . '...');
 }
 
 // Database connection parameters
@@ -69,11 +47,6 @@ try {
             }
         } else {
             $error_message = "Please enter a valid email address.";
-        }
-        
-        // Preserve cart data
-        if(isset($_POST['cart_data_json'])) {
-            $_SESSION['temp_cart_data'] = $_POST['cart_data_json'];
         }
     }
     
@@ -111,11 +84,6 @@ try {
                 
                 $success_message = "Account created successfully! You can now proceed with checkout.";
             }
-        }
-        
-        // Preserve cart data
-        if(isset($_POST['cart_data_json'])) {
-            $_SESSION['temp_cart_data'] = $_POST['cart_data_json'];
         }
     }
     
@@ -228,18 +196,35 @@ try {
 }
 
 // Restore cart data if needed
-if(isset($_SESSION['temp_cart_data'])) {
-    echo "
-    <script>
-        // Restore cart data from session
-        let savedCart = " . $_SESSION['temp_cart_data'] . ";
-        if(savedCart && Array.isArray(savedCart)) {
-            localStorage.setItem('cart', JSON.stringify(savedCart));
-            // Will update UI when page loads
+if (isset($_SESSION['preserved_cart']) && !empty($_SESSION['preserved_cart'])) {
+    echo "<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Restore cart from session
+        try {
+            const preservedCart = '" . addslashes($_SESSION['preserved_cart']) . "';
+            if (preservedCart) {
+                localStorage.setItem('cart', preservedCart);
+                console.log('Cart restored from PHP session');
+                
+                // Reload cart data for JavaScript
+                if (typeof cart !== 'undefined') {
+                    cart = JSON.parse(preservedCart);
+                    if (typeof updateCartDisplay === 'function') {
+                        updateCartDisplay();
+                    }
+                    if (typeof updateCartBadge === 'function') {
+                        updateCartBadge();
+                    }
+                }
+            }
+        } catch(e) {
+            console.error('Error restoring cart from PHP session:', e);
         }
+    });
     </script>";
-    // Clear the temporary cart data
-    unset($_SESSION['temp_cart_data']);
+    
+    // Clear the session variable
+    unset($_SESSION['preserved_cart']);
 }
 ?>
 
@@ -573,7 +558,6 @@ select {
     </style>
 </head>
 <body>
-
     <!-- Success/Error Message Display -->
     <?php if(isset($success_message)): ?>
     <div class="success-message container">
@@ -639,11 +623,12 @@ select {
                         </div>
                         <input type="hidden" name="find_customer" value="1">
                         <input type="hidden" name="cart_data_json" id="cart_data_json_existing">
-                        <button type="submit" class="btn-block" onclick="return prepareFormSubmit('cart_data_json_existing')">Find Account</button>
+                        <button type="button" class="btn-block" onclick="submitExistingCustomerForm()">Find Account</button>
                     </form>
                 </div>
-
+                
                 <div id="NewCustomer" class="tabcontent">
+                    <form id="new-customer-form" method="POST" action="">
                         <div class="form-group">
                             <label for="new_customer_name">Full Name:</label>
                             <input type="text" id="new_customer_name" name="customer_name" required>
@@ -658,7 +643,7 @@ select {
                         </div>
                         <input type="hidden" name="register_customer" value="1">
                         <input type="hidden" name="cart_data_json" id="cart_data_json_new">
-                        <button type="submit" class="btn-block" onclick="return prepareFormSubmit('cart_data_json_new')">Register & Continue</button>
+                        <button type="button" class="btn-block" onclick="submitNewCustomerForm()">Register & Continue</button>
                     </form>
                 </div>
                 
@@ -819,42 +804,6 @@ select {
     </form>
 
     <script>
-        // Function to prepare the form for submission by storing cart data
-        function prepareFormSubmit(cartFieldId) {
-            try {
-                // Get current cart from localStorage and store in form
-                const currentCart = localStorage.getItem('cart');
-                document.getElementById(cartFieldId).value = currentCart;
-                
-                // Also store cart in sessionStorage as a backup
-                sessionStorage.setItem('backup_cart', currentCart);
-                
-                return true; // Allow form submission to proceed
-            } catch(e) {
-                console.error('Error saving cart data:', e);
-                return true; // Still allow form submission even if saving fails
-            }
-        }
-
-        // Add this to your DOMContentLoaded event handler
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check for backup cart in sessionStorage
-            const backupCart = sessionStorage.getItem('backup_cart');
-            if(backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
-                localStorage.setItem('cart', backupCart);
-                sessionStorage.removeItem('backup_cart');
-                console.log('Cart restored from sessionStorage backup');
-                
-                // Update UI based on restored cart
-                try {
-                    cart = JSON.parse(backupCart);
-                    updateCartDisplay();
-                    updateCartBadge();
-                } catch(e) {
-                    console.error('Error parsing backup cart:', e);
-                }
-            }
-        });
         // Initialize cart from localStorage or as empty array
         let cart = JSON.parse(localStorage.getItem('cart')) || [];
         
@@ -885,7 +834,74 @@ select {
             document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
             document.getElementById('success-modal').style.display = 'block';
             <?php endif; ?>
+            
+            // Check for backup cart in sessionStorage
+            const backupCart = sessionStorage.getItem('backup_cart');
+            if (backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
+                console.log('Restoring cart from backup');
+                localStorage.setItem('cart', backupCart);
+                sessionStorage.removeItem('backup_cart');
+                
+                // Update UI based on restored cart
+                try {
+                    cart = JSON.parse(backupCart);
+                    updateCartDisplay();
+                    updateCartBadge();
+                } catch(e) {
+                    console.error('Error parsing backup cart:', e);
+                }
+            }
         });
+        
+        // Function to submit the existing customer form
+        function submitExistingCustomerForm() {
+            // Check if form is valid
+            const form = document.getElementById('existing-customer-form');
+            if (form.checkValidity()) {
+                // Save cart data to the form
+                const currentCart = localStorage.getItem('cart');
+                document.getElementById('cart_data_json_existing').value = currentCart;
+                
+                // Save to session storage as backup
+                try {
+                    sessionStorage.setItem('backup_cart', currentCart);
+                    console.log('Cart saved to sessionStorage');
+                } catch(e) {
+                    console.error('Failed to save to sessionStorage:', e);
+                }
+                
+                // Submit the form
+                form.submit();
+            } else {
+                // Trigger form validation
+                form.reportValidity();
+            }
+        }
+
+        // Function to submit the new customer form
+        function submitNewCustomerForm() {
+            // Check if form is valid
+            const form = document.getElementById('new-customer-form');
+            if (form.checkValidity()) {
+                // Save cart data to the form
+                const currentCart = localStorage.getItem('cart');
+                document.getElementById('cart_data_json_new').value = currentCart;
+                
+                // Save to session storage as backup
+                try {
+                    sessionStorage.setItem('backup_cart', currentCart);
+                    console.log('Cart saved to sessionStorage');
+                } catch(e) {
+                    console.error('Failed to save to sessionStorage:', e);
+                }
+                
+                // Submit the form
+                form.submit();
+            } else {
+                // Trigger form validation
+                form.reportValidity();
+            }
+        }
         
         // Function to add item to cart
         function addToCart(id, name, price, quantity, maxQuantity) {
@@ -1073,11 +1089,6 @@ select {
             // Show the current tab, and add an "active" class to the button that opened the tab
             document.getElementById(tabName).style.display = "block";
             evt.currentTarget.className += " active";
-        }
-        
-        // Function to save cart data to form before submission
-        function saveCartData(elementId) {
-            document.getElementById(elementId).value = JSON.stringify(cart);
         }
     </script>
 </body>
