@@ -101,7 +101,7 @@
     <li><a href="/orders.php" class="invisible-link <?= $currentPage === 'orders.php' ? 'active' : '' ?>">Orders</a></li>
     <li><a href="/inventory.php" class="invisible-link <?= $currentPage === 'inventory.php' ? 'active' : '' ?>">Inventory</a></li>
     <li style="margin-left: auto;">
-      <button id="cart-toggle">
+      <button id="cart-toggle" type="button">
         <i class="fa fa-shopping-cart"></i> Cart <span id="cart-badge" class="cart-badge">0</span>
       </button>
     </li>
@@ -113,29 +113,31 @@
   <script>
     // Initialize cart from localStorage
     document.addEventListener('DOMContentLoaded', function() {
-      const cart = JSON.parse(localStorage.getItem('cart')) || [];
-      const badge = document.getElementById('cart-badge');
-      const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
-      badge.textContent = itemCount;
-      badge.style.display = itemCount > 0 ? 'inline' : 'none';
+      // Initialize cart from localStorage or as empty array
+      let cart = JSON.parse(localStorage.getItem('cart')) || [];
+      updateNavbarCartBadge();
       
-      // Toggle cart visibility
+      // Add click event for cart toggle button
       document.getElementById('cart-toggle').addEventListener('click', function() {
-        // If we're on the products page, toggle the cart display
-        if (window.location.pathname.includes('products.php')) {
-          const cartContainer = document.getElementById('cart-container');
-          if (cartContainer) {
-            if (cartContainer.style.display === 'none') {
-              cartContainer.style.display = 'block';
-            } else {
-              cartContainer.style.display = 'none';
-            }
-          }
+        // If we're on the products page
+        if ('<?= $currentPage ?>' === 'products.php') {
+          // Toggle cart visibility by triggering a custom event
+          const toggleEvent = new CustomEvent('toggleCart');
+          document.dispatchEvent(toggleEvent);
         } else {
-          // Otherwise, redirect to the products page
+          // Navigate to products page
           window.location.href = '/products.php';
         }
       });
+      
+      // Function to update cart badge count
+      function updateNavbarCartBadge() {
+        const badge = document.getElementById('cart-badge');
+        const itemCount = cart.reduce((total, item) => total + parseInt(item.quantity || 0), 0);
+        
+        badge.textContent = itemCount;
+        badge.style.display = itemCount > 0 ? 'inline' : 'none';
+      }
     });
   </script>
 </nav>
