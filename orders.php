@@ -304,6 +304,34 @@ tr:hover {
     border-radius: 4px;
     cursor: pointer;
 }
+.store-balance-banner {
+    background-color: #e6f7ff; /* Light blue background */
+    padding: 12px 20px;
+    border-bottom: 2px solid #1890ff; /* Blue border */
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    box-shadow: 0 2px 10px rgba(24, 144, 255, 0.1);
+    position: relative;
+    z-index: 900; /* Below navbar but above other content */
+}
+.store-balance-banner h3 {
+    margin: 0;
+    color: #0050b3; /* Darker blue text */
+    font-size: 18px;
+    font-weight: 600;
+}
+.store-balance-banner .amount {
+    font-weight: bold;
+    font-size: 22px;
+    color: #0050b3; /* Darker blue text */
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 5px 15px;
+    border-radius: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
     </style>
 </head>
 <body>
@@ -320,14 +348,14 @@ tr:hover {
     </div>
     <?php endif; ?>
     
+    <!-- Store Balance Banner (immediately after navbar) -->
+    <div class="store-balance-banner">
+        <h3>Current Store Balance</h3>
+        <span class="amount">$<?php echo number_format($store_balance, 2); ?></span>
+    </div>
+    
     <div class="container">
         <h1>Orders</h1>
-        
-        <!-- Store Balance Section -->
-        <div class="store-balance">
-            <h3>Store Balance:</h3>
-            <span class="amount">$<?php echo number_format($store_balance, 2); ?></span>
-        </div>
         
         <div class="search-container">
             <form action="" method="GET">
