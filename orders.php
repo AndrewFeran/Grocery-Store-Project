@@ -80,7 +80,8 @@ try {
             JOIN OrderItem oi ON o.ID = oi.Order_ID
             JOIN Product p ON oi.Product_ID = p.ID
             GROUP BY o.ID
-            ORDER BY o.OrderDate DESC";
+            ORDER BY o.OrderDate DESC
+            ORDER BY o.ID DESC";
     
     $stmt = $conn->prepare($sql);
     $stmt->execute();
