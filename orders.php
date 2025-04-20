@@ -71,7 +71,7 @@ try {
     }
     
     // Prepare query to retrieve orders with JOIN to Customer table
-    $sql = "SELECT o.ID as OrderID, o.Date as OrderDate, 
+    $sql = "SELECT o.ID as OrderID, o.OrderDate as OrderDate, 
                    c.ID as CustomerID, c.First_Name, c.Last_Name,
                    COUNT(oi.ID) as TotalItems,
                    SUM(p.Sell_Price) as TotalAmount
@@ -80,7 +80,7 @@ try {
             JOIN OrderItem oi ON o.ID = oi.Order_ID
             JOIN Product p ON oi.Product_ID = p.ID
             GROUP BY o.ID
-            ORDER BY o.Date DESC";
+            ORDER BY o.OrderDate DESC";
     
     $stmt = $conn->prepare($sql);
     $stmt->execute();

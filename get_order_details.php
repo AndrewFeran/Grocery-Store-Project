@@ -27,7 +27,7 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Prepare query to retrieve order details
-    $order_query = "SELECT o.ID as OrderID, o.Date as OrderDate, 
+    $order_query = "SELECT o.ID as OrderID, o.OrderDate as OrderDate, 
                     c.First_Name, c.Last_Name
                   FROM `Order` o
                   JOIN Customer c ON o.Customer_ID = c.ID
