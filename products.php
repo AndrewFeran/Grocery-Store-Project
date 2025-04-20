@@ -16,6 +16,7 @@ $dbname = "grocery_store";
 // Initialize variables
 $success_message = null;
 $error_message = null;
+$customer_info = null;
 
 try {
     // Create connection using PDO
@@ -23,21 +24,83 @@ try {
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Process checkout form submission - only if POST data exists and no success message in session
-    if(isset($_POST['checkout']) && isset($_POST['cart_data']) && !isset($_SESSION['order_success'])) {
-        $cartData = json_decode($_POST['cart_data'], true);
+    // Find customer by email if form submitted
+    if(isset($_POST['find_customer']) && isset($_POST['customer_email'])) {
+        $email = trim($_POST['customer_email']);
+        if(!empty($email)) {
+            // Prepare query to find customer by email
+            $find_sql = "SELECT * FROM Customer WHERE Email = ?";
+            $find_stmt = $conn->prepare($find_sql);
+            $find_stmt->execute([$email]);
+            $customer_info = $find_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if(!$customer_info) {
+                // No customer found - show registration form
+                $error_message = "No account found with that email. Please register as a new customer.";
+            }
+        } else {
+            $error_message = "Please enter a valid email address.";
+        }
+    }
+    
+    // Register new customer if form submitted
+    if(isset($_POST['register_customer'])) {
+        $name = trim($_POST['customer_name'] ?? '');
+        $email = trim($_POST['customer_email'] ?? '');
+        $address = trim($_POST['customer_address'] ?? '');
         
-        if(!empty($cartData)) {
+        if(empty($name) || empty($email) || empty($address)) {
+            $error_message = "All fields are required for registration.";
+        } else {
+            // Check if email already exists
+            $check_sql = "SELECT COUNT(*) FROM Customer WHERE Email = ?";
+            $check_stmt = $conn->prepare($check_sql);
+            $check_stmt->execute([$email]);
+            $exists = (int)$check_stmt->fetchColumn() > 0;
+            
+            if($exists) {
+                $error_message = "An account with this email already exists.";
+            } else {
+                // Insert new customer
+                $register_sql = "INSERT INTO Customer (Name, Email, Address) VALUES (?, ?, ?)";
+                $register_stmt = $conn->prepare($register_sql);
+                $register_stmt->execute([$name, $email, $address]);
+                
+                // Get the new customer ID
+                $customer_id = $conn->lastInsertId();
+                
+                // Get customer info
+                $find_sql = "SELECT * FROM Customer WHERE ID = ?";
+                $find_stmt = $conn->prepare($find_sql);
+                $find_stmt->execute([$customer_id]);
+                $customer_info = $find_stmt->fetch(PDO::FETCH_ASSOC);
+                
+                $success_message = "Account created successfully! You can now proceed with checkout.";
+            }
+        }
+    }
+    
+    // Process checkout form submission
+    if(isset($_POST['checkout']) && isset($_POST['cart_data']) && isset($_POST['customer_id'])) {
+        $cartData = json_decode($_POST['cart_data'], true);
+        $customer_id = (int)$_POST['customer_id'];
+        
+        if(empty($cartData)) {
+            $error_message = "Your cart is empty.";
+        } elseif($customer_id <= 0) {
+            $error_message = "Please select or register a customer account before checkout.";
+        } else {
             // Start transaction
             $conn->beginTransaction();
             
             try {
-                // Create new order
-                $customer_id = 1; // Default customer ID until authentication is implemented
+                // Get current date for order
+                $date = date('Y-m-d H:i:s');
                 
-                $order_sql = "INSERT INTO `Order` (Customer_ID) VALUES (?)";
+                // Create new order with date and customer ID
+                $order_sql = "INSERT INTO `Order` (Customer_ID, OrderDate) VALUES (?, ?)";
                 $order_stmt = $conn->prepare($order_sql);
-                $order_stmt->execute([$customer_id]);
+                $order_stmt->execute([$customer_id, $date]);
                 
                 // Get the new order ID
                 $order_id = $conn->lastInsertId();
@@ -74,8 +137,17 @@ try {
                 // Commit transaction
                 $conn->commit();
                 
-                // Set success message in session - removed store balance mention
-                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully!";
+                // Get customer name
+                $name_sql = "SELECT Name FROM Customer WHERE ID = ?";
+                $name_stmt = $conn->prepare($name_sql);
+                $name_stmt->execute([$customer_id]);
+                $customer_name = $name_stmt->fetchColumn();
+                
+                // Format date for display
+                $formatted_date = date('F j, Y', strtotime($date));
+                
+                // Set success message in session
+                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully on " . $formatted_date . " for " . $customer_name . "!";
                 
                 // Redirect to prevent form resubmission
                 header("Location: " . $_SERVER['PHP_SELF']);
@@ -324,7 +396,7 @@ select {
     margin: 15% auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 400px;
+    width: 500px;
     border-radius: 5px;
     text-align: center;
     border-top: 3px solid #1e5631; /* Added accent border */
@@ -358,6 +430,92 @@ select {
     color: #721c24;
     font-weight: bold;
 }
+/* Customer form styling */
+.customer-form {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+.customer-form h3 {
+    margin-top: 0;
+    color: #1e5631;
+}
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+.form-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+.tab-container {
+    margin-bottom: 20px;
+}
+.tab {
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+    border-radius: 5px 5px 0 0;
+}
+.tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+    font-size: 16px;
+    font-weight: bold;
+}
+.tab button:hover {
+    background-color: #ddd;
+}
+.tab button.active {
+    background-color: #1e5631;
+    color: white;
+}
+.tabcontent {
+    display: none;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 5px 5px;
+    animation: fadeEffect 1s;
+}
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+.customer-info {
+    background-color: #e9f5fb;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    border: 1px solid #b8e1f3;
+}
+.customer-name {
+    font-weight: bold;
+    color: #1e5631;
+}
+.btn-block {
+    display: block;
+    width: 100%;
+}
     </style>
 </head>
 <body>
@@ -389,12 +547,58 @@ select {
     <!-- Checkout confirmation modal -->
     <div id="checkout-modal" class="modal">
         <div class="modal-content">
-            <h2>Confirm Order</h2>
-            <p>Are you sure you want to place this order?</p>
-            <div>
-                <button onclick="checkout()">Place Order</button>
-                <button onclick="closeModal()" style="background-color: #f44336; margin-left: 10px;">Cancel</button>
-            </div>
+            <h2>Customer Information</h2>
+            
+            <?php if(isset($customer_info) && $customer_info): ?>
+                <div class="customer-info">
+                    <p>You are checking out as: <span class="customer-name"><?php echo htmlspecialchars($customer_info['Name']); ?></span></p>
+                    <p><strong>Email:</strong> <?php echo htmlspecialchars($customer_info['Email']); ?></p>
+                    <p><strong>Address:</strong> <?php echo htmlspecialchars($customer_info['Address']); ?></p>
+                </div>
+                <div class="form-buttons">
+                    <button onclick="closeModal()" style="background-color: #f44336;">Cancel</button>
+                    <button onclick="completeCheckout(<?php echo $customer_info['ID']; ?>)">Place Order</button>
+                </div>
+            <?php else: ?>
+                <div class="tab">
+                    <button class="tablinks active" onclick="openTab(event, 'ExistingCustomer')">Existing Customer</button>
+                    <button class="tablinks" onclick="openTab(event, 'NewCustomer')">New Customer</button>
+                </div>
+                
+                <div id="ExistingCustomer" class="tabcontent" style="display: block;">
+                    <form id="existing-customer-form" method="POST" action="">
+                        <div class="form-group">
+                            <label for="customer_email">Email Address:</label>
+                            <input type="email" id="customer_email" name="customer_email" required>
+                        </div>
+                        <input type="hidden" name="find_customer" value="1">
+                        <button type="submit" class="btn-block">Find Account</button>
+                    </form>
+                </div>
+                
+                <div id="NewCustomer" class="tabcontent">
+                    <form id="new-customer-form" method="POST" action="">
+                        <div class="form-group">
+                            <label for="new_customer_name">Full Name:</label>
+                            <input type="text" id="new_customer_name" name="customer_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="new_customer_email">Email Address:</label>
+                            <input type="email" id="new_customer_email" name="customer_email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="customer_address">Address:</label>
+                            <input type="text" id="customer_address" name="customer_address" required>
+                        </div>
+                        <input type="hidden" name="register_customer" value="1">
+                        <button type="submit" class="btn-block">Register & Continue</button>
+                    </form>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button onclick="closeModal()" style="background-color: #f44336;">Cancel Checkout</button>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
     
@@ -544,6 +748,7 @@ select {
     <form id="checkout-form" method="POST" action="" style="display: none;">
         <input type="hidden" name="checkout" value="1">
         <input type="hidden" name="cart_data" id="cart_data" value="">
+        <input type="hidden" name="customer_id" id="customer_id" value="">
     </form>
 
     <script>
@@ -658,23 +863,21 @@ select {
             document.getElementById('checkout-modal').style.display = 'none';
         }
         
-        // Function to close success modal and refresh the page
+        // Function to close success modal
         function closeSuccessModal() {
             document.getElementById('success-modal').style.display = 'none';
         }
         
-        // Function to checkout (submit the form)
-        function checkout() {
+        // Function to complete checkout with customer ID
+        function completeCheckout(customerId) {
             if (cart.length === 0) {
                 alert('Your cart is empty!');
                 return;
             }
             
-            // Close the confirmation modal
-            closeModal();
-            
-            // Set the cart data in the hidden form field
+            // Set the cart data and customer ID in the hidden form fields
             document.getElementById('cart_data').value = JSON.stringify(cart);
+            document.getElementById('customer_id').value = customerId;
             
             // Submit the form
             document.getElementById('checkout-form').submit();
@@ -745,6 +948,28 @@ select {
             if (currentVal > 1) {
                 input.value = currentVal - 1;
             }
+        }
+        
+        // Function to switch between tabs in the checkout modal
+        function openTab(evt, tabName) {
+            // Declare all variables
+            var i, tabcontent, tablinks;
+
+            // Get all elements with class="tabcontent" and hide them
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+
+            // Get all elements with class="tablinks" and remove the class "active"
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+
+            // Show the current tab, and add an "active" class to the button that opened the tab
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
         }
     </script>
 </body>
