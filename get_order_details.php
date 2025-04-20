@@ -27,8 +27,8 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Prepare query to retrieve order details
-    $order_query = "SELECT o.ID as OrderID, o.OrderDate as OrderDate, 
-                    c.First_Name, c.Last_Name
+    $order_query = "SELECT o.ID as OrderID, o.OrderDate, 
+                    c.Name
                   FROM `Order` o
                   JOIN Customer c ON o.Customer_ID = c.ID
                   WHERE o.ID = ?";
@@ -56,8 +56,8 @@ try {
     $items_stmt->execute([$order_id]);
     $items = $items_stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Format customer name
-    $customer_name = $order['First_Name'] . ' ' . $order['Last_Name'];
+    // Get customer name
+    $customer_name = $order['Name'];
     
     // Prepare response data
     $response = [

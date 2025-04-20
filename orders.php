@@ -71,8 +71,8 @@ try {
     }
     
     // Prepare query to retrieve orders with JOIN to Customer table
-    $sql = "SELECT o.ID as OrderID, o.OrderDate as OrderDate, 
-                   c.ID as CustomerID, c.First_Name, c.Last_Name,
+    $sql = "SELECT o.ID as OrderID, o.OrderDate, 
+                   c.ID as CustomerID, c.Name,
                    COUNT(oi.ID) as TotalItems,
                    SUM(p.Sell_Price) as TotalAmount
             FROM `Order` o
@@ -345,7 +345,7 @@ tr:hover {
                         
                         if (!empty($search_term)) {
                             $order_id_match = strpos(strtolower($order['OrderID']), $search_term) !== false;
-                            $customer_match = strpos(strtolower($order['First_Name'] . ' ' . $order['Last_Name']), $search_term) !== false;
+                            $customer_match = strpos(strtolower($order['Name']), $search_term) !== false;
                             
                             if (!$order_id_match && !$customer_match) {
                                 continue; // Skip this order if it doesn't match search
@@ -355,7 +355,7 @@ tr:hover {
                         echo "<tr>";
                         echo "<td>#" . $order['OrderID'] . "</td>";
                         echo "<td>" . date('M d, Y', strtotime($order['OrderDate'])) . "</td>";
-                        echo "<td>" . htmlspecialchars($order['First_Name'] . ' ' . $order['Last_Name']) . "</td>";
+                        echo "<td>" . htmlspecialchars($order['Name']) . "</td>";
                         echo "<td>" . $order['TotalItems'] . "</td>";
                         echo "<td>$" . number_format($order['TotalAmount'], 2) . "</td>";
                         echo "<td>";
