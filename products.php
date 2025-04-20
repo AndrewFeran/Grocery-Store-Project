@@ -41,6 +41,11 @@ try {
         } else {
             $error_message = "Please enter a valid email address.";
         }
+        
+        // Preserve cart data
+        if(isset($_POST['cart_data_json'])) {
+            $_SESSION['temp_cart_data'] = $_POST['cart_data_json'];
+        }
     }
     
     // Register new customer if form submitted
@@ -77,6 +82,11 @@ try {
                 
                 $success_message = "Account created successfully! You can now proceed with checkout.";
             }
+        }
+        
+        // Preserve cart data
+        if(isset($_POST['cart_data_json'])) {
+            $_SESSION['temp_cart_data'] = $_POST['cart_data_json'];
         }
     }
     
@@ -186,6 +196,21 @@ try {
     echo "<p>Please check your database credentials and connection.</p>";
     echo "</div>";
     exit();
+}
+
+// Restore cart data if needed
+if(isset($_SESSION['temp_cart_data'])) {
+    echo "
+    <script>
+        // Restore cart data from session
+        let savedCart = " . $_SESSION['temp_cart_data'] . ";
+        if(savedCart && Array.isArray(savedCart)) {
+            localStorage.setItem('cart', JSON.stringify(savedCart));
+            // Will update UI when page loads
+        }
+    </script>";
+    // Clear the temporary cart data
+    unset($_SESSION['temp_cart_data']);
 }
 ?>
 
@@ -553,7 +578,18 @@ select {
                 <div class="customer-info">
                     <p>You are checking out as: <span class="customer-name"><?php echo htmlspecialchars($customer_info['Name']); ?></span></p>
                     <p><strong>Email:</strong> <?php echo htmlspecialchars($customer_info['Email']); ?></p>
-                    <p><strong>Address:</strong> <?php echo htmlspecialchars($customer_info['Address']); ?></p>
+                    <p><strong>Address:</strong> <?php 
+                        // Safely display address with fallbacks
+                        if(isset($customer_info['Address'])) {
+                            echo htmlspecialchars($customer_info['Address']);
+                        } elseif(isset($customer_info['address'])) { 
+                            echo htmlspecialchars($customer_info['address']);
+                        } elseif(isset($customer_info['CustomerAddress'])) {
+                            echo htmlspecialchars($customer_info['CustomerAddress']);
+                        } else {
+                            echo "<em>Address not available</em>";
+                        }
+                    ?></p>
                 </div>
                 <div class="form-buttons">
                     <button onclick="closeModal()" style="background-color: #f44336;">Cancel</button>
@@ -572,7 +608,8 @@ select {
                             <input type="email" id="customer_email" name="customer_email" required>
                         </div>
                         <input type="hidden" name="find_customer" value="1">
-                        <button type="submit" class="btn-block">Find Account</button>
+                        <input type="hidden" name="cart_data_json" id="cart_data_json_existing" value="">
+                        <button type="submit" class="btn-block" onclick="saveCartData('cart_data_json_existing')">Find Account</button>
                     </form>
                 </div>
                 
@@ -591,7 +628,8 @@ select {
                             <input type="text" id="customer_address" name="customer_address" required>
                         </div>
                         <input type="hidden" name="register_customer" value="1">
-                        <button type="submit" class="btn-block">Register & Continue</button>
+                        <input type="hidden" name="cart_data_json" id="cart_data_json_new" value="">
+                        <button type="submit" class="btn-block" onclick="saveCartData('cart_data_json_new')">Register & Continue</button>
                     </form>
                 </div>
                 
@@ -970,6 +1008,11 @@ select {
             // Show the current tab, and add an "active" class to the button that opened the tab
             document.getElementById(tabName).style.display = "block";
             evt.currentTarget.className += " active";
+        }
+        
+        // Function to save cart data to form before submission
+        function saveCartData(elementId) {
+            document.getElementById(elementId).value = JSON.stringify(cart);
         }
     </script>
 </body>
