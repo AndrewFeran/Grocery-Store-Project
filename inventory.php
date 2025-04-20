@@ -24,10 +24,9 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Handle restock request if form submitted
-    if(isset($_POST['submit_restock']) && isset($_POST['product_id']) && isset($_POST['quantity']) && isset($_POST['supplier_id'])) {
+    if(isset($_POST['submit_restock']) && isset($_POST['product_id']) && isset($_POST['quantity'])) {
         $product_id = $_POST['product_id'];
         $quantity = (int)$_POST['quantity'];
-        $supplier_id = (int)$_POST['supplier_id'];
         
         if($quantity <= 0) {
             $error_message = "Please enter a valid quantity.";
@@ -37,10 +36,10 @@ try {
             
             try {
                 // Create new restock request
-                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Supplier_ID, Quantity, Status, RequestDate) 
-                               VALUES (?, ?, ?, 'Pending', NOW())";
+                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Quantity, Status, RequestDate) 
+                               VALUES (?, ?, 'Pending', NOW())";
                 $restock_stmt = $conn->prepare($restock_sql);
-                $restock_stmt->execute([$product_id, $supplier_id, $quantity]);
+                $restock_stmt->execute([$product_id, $quantity]);
                 
                 // Get the new restock request ID
                 $restock_id = $conn->lastInsertId();
@@ -51,16 +50,10 @@ try {
                 $name_stmt->execute([$product_id]);
                 $product_name = $name_stmt->fetchColumn();
                 
-                // Get supplier name
-                $supplier_sql = "SELECT Name FROM Supplier WHERE ID = ?";
-                $supplier_stmt = $conn->prepare($supplier_sql);
-                $supplier_stmt->execute([$supplier_id]);
-                $supplier_name = $supplier_stmt->fetchColumn();
-                
                 // Commit transaction
                 $conn->commit();
                 
-                $success_message = "Restock request #" . $restock_id . " for " . $quantity . " units of " . $product_name . " from " . $supplier_name . " has been submitted successfully.";
+                $success_message = "Restock request #" . $restock_id . " for " . $quantity . " units of " . $product_name . " has been submitted successfully.";
             } catch(PDOException $e) {
                 // Rollback transaction in case of error
                 $conn->rollBack();
@@ -78,10 +71,9 @@ try {
         
         try {
             // Get restock request details
-            $request_sql = "SELECT r.Product_ID, r.Quantity, p.Buy_Price, p.Name as ProductName, s.Name as SupplierName
+            $request_sql = "SELECT r.ID, r.Product_ID, r.Quantity, p.Buy_Price, p.Name as ProductName
                             FROM RestockRequest r
                             JOIN Product p ON r.Product_ID = p.ID
-                            JOIN Supplier s ON r.Supplier_ID = s.ID
                             WHERE r.ID = ?";
             $request_stmt = $conn->prepare($request_sql);
             $request_stmt->execute([$restock_id]);
@@ -181,19 +173,19 @@ try {
     $category_stmt->execute();
     $category_stats = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get all suppliers
+    // Get all suppliers - Removing since there's no Supplier table in this structure
+    /*
     $supplier_sql = "SELECT ID, Name, Category FROM Supplier ORDER BY Name";
     $supplier_stmt = $conn->prepare($supplier_sql);
     $supplier_stmt->execute();
     $suppliers = $supplier_stmt->fetchAll(PDO::FETCH_ASSOC);
+    */
     
     // Get pending restock requests
-    $pending_sql = "SELECT r.ID, r.Product_ID, r.Supplier_ID, r.Quantity, r.Status, r.RequestDate,
-                          p.Name as ProductName, p.Buy_Price, p.Sell_Price,
-                          s.Name as SupplierName
+    $pending_sql = "SELECT r.ID, r.Product_ID, r.Quantity, r.Status, r.RequestDate,
+                          p.Name as ProductName, p.Buy_Price, p.Sell_Price
                    FROM RestockRequest r
                    JOIN Product p ON r.Product_ID = p.ID
-                   JOIN Supplier s ON r.Supplier_ID = s.ID
                    WHERE r.Status = 'Pending'
                    ORDER BY r.RequestDate DESC";
     $pending_stmt = $conn->prepare($pending_sql);
@@ -201,13 +193,11 @@ try {
     $pending_requests = $pending_stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Get completed restock requests (approved or rejected)
-    $completed_sql = "SELECT r.ID, r.Product_ID, r.Supplier_ID, r.Quantity, r.Status, 
+    $completed_sql = "SELECT r.ID, r.Product_ID, r.Quantity, r.Status, 
                              r.RequestDate, r.CompletionDate,
-                             p.Name as ProductName, p.Buy_Price, p.Sell_Price,
-                             s.Name as SupplierName
+                             p.Name as ProductName, p.Buy_Price, p.Sell_Price
                       FROM RestockRequest r
                       JOIN Product p ON r.Product_ID = p.ID
-                      JOIN Supplier s ON r.Supplier_ID = s.ID
                       WHERE r.Status IN ('Approved', 'Rejected')
                       ORDER BY r.CompletionDate DESC
                       LIMIT 50";
@@ -717,7 +707,6 @@ select {
                         <tr>
                             <th>Request #</th>
                             <th>Product</th>
-                            <th>Supplier</th>
                             <th>Quantity</th>
                             <th>Total Cost</th>
                             <th>Date Requested</th>
@@ -732,7 +721,6 @@ select {
                             echo "<tr>";
                             echo "<td>#" . $request['ID'] . "</td>";
                             echo "<td>" . htmlspecialchars($request['ProductName']) . "</td>";
-                            echo "<td>" . htmlspecialchars($request['SupplierName']) . "</td>";
                             echo "<td>" . $request['Quantity'] . "</td>";
                             echo "<td>$" . number_format($total_cost, 2) . "</td>";
                             echo "<td>" . date('M d, Y', strtotime($request['RequestDate'])) . "</td>";
@@ -772,7 +760,6 @@ select {
                         <tr>
                             <th>Request #</th>
                             <th>Product</th>
-                            <th>Supplier</th>
                             <th>Quantity</th>
                             <th>Total Cost</th>
                             <th>Status</th>
@@ -789,7 +776,6 @@ select {
                             echo "<tr>";
                             echo "<td>#" . $request['ID'] . "</td>";
                             echo "<td>" . htmlspecialchars($request['ProductName']) . "</td>";
-                            echo "<td>" . htmlspecialchars($request['SupplierName']) . "</td>";
                             echo "<td>" . $request['Quantity'] . "</td>";
                             echo "<td>$" . number_format($total_cost, 2) . "</td>";
                             echo "<td><span class='$status_class'>" . $request['Status'] . "</span></td>";
@@ -815,18 +801,6 @@ select {
                 <div class="form-group">
                     <label for="quantity">Quantity to Request:</label>
                     <input type="number" id="quantity" name="quantity" min="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="supplier_id">Select Supplier:</label>
-                    <select id="supplier_id" name="supplier_id" required>
-                        <option value="">-- Select Supplier --</option>
-                        <?php
-                        foreach($suppliers as $supplier) {
-                            echo "<option value='" . $supplier['ID'] . "'>" . htmlspecialchars($supplier['Name']) . 
-                                 " (" . htmlspecialchars($supplier['Category']) . ")</option>";
-                        }
-                        ?>
-                    </select>
                 </div>
                 <div class="form-group">
                     <label for="buy_price">Buy Price Per Unit:</label>
