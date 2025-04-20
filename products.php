@@ -573,44 +573,7 @@ select {
     </style>
 </head>
 <body>
-    <script>
-        // Function to prepare the form for submission by storing cart data
-        function prepareFormSubmit(cartFieldId) {
-            try {
-                // Get current cart from localStorage and store in form
-                const currentCart = localStorage.getItem('cart');
-                document.getElementById(cartFieldId).value = currentCart;
-                
-                // Also store cart in sessionStorage as a backup
-                sessionStorage.setItem('backup_cart', currentCart);
-                
-                return true; // Allow form submission to proceed
-            } catch(e) {
-                console.error('Error saving cart data:', e);
-                return true; // Still allow form submission even if saving fails
-            }
-        }
 
-        // Add this to your DOMContentLoaded event handler
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check for backup cart in sessionStorage
-            const backupCart = sessionStorage.getItem('backup_cart');
-            if(backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
-                localStorage.setItem('cart', backupCart);
-                sessionStorage.removeItem('backup_cart');
-                console.log('Cart restored from sessionStorage backup');
-                
-                // Update UI based on restored cart
-                try {
-                    cart = JSON.parse(backupCart);
-                    updateCartDisplay();
-                    updateCartBadge();
-                } catch(e) {
-                    console.error('Error parsing backup cart:', e);
-                }
-            }
-        });
-    </script>
     <!-- Success/Error Message Display -->
     <?php if(isset($success_message)): ?>
     <div class="success-message container">
@@ -856,6 +819,42 @@ select {
     </form>
 
     <script>
+        // Function to prepare the form for submission by storing cart data
+        function prepareFormSubmit(cartFieldId) {
+            try {
+                // Get current cart from localStorage and store in form
+                const currentCart = localStorage.getItem('cart');
+                document.getElementById(cartFieldId).value = currentCart;
+                
+                // Also store cart in sessionStorage as a backup
+                sessionStorage.setItem('backup_cart', currentCart);
+                
+                return true; // Allow form submission to proceed
+            } catch(e) {
+                console.error('Error saving cart data:', e);
+                return true; // Still allow form submission even if saving fails
+            }
+        }
+
+        // Add this to your DOMContentLoaded event handler
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for backup cart in sessionStorage
+            const backupCart = sessionStorage.getItem('backup_cart');
+            if(backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
+                localStorage.setItem('cart', backupCart);
+                sessionStorage.removeItem('backup_cart');
+                console.log('Cart restored from sessionStorage backup');
+                
+                // Update UI based on restored cart
+                try {
+                    cart = JSON.parse(backupCart);
+                    updateCartDisplay();
+                    updateCartBadge();
+                } catch(e) {
+                    console.error('Error parsing backup cart:', e);
+                }
+            }
+        });
         // Initialize cart from localStorage or as empty array
         let cart = JSON.parse(localStorage.getItem('cart')) || [];
         
