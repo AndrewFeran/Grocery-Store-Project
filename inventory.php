@@ -23,33 +23,27 @@ try {
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Handle inventory restock if form submitted
-    if(isset($_POST['restock_inventory']) && isset($_POST['product_id']) && isset($_POST['quantity'])) {
+    // Handle restock request if form submitted
+    if(isset($_POST['submit_restock']) && isset($_POST['product_id']) && isset($_POST['quantity']) && isset($_POST['supplier_id'])) {
         $product_id = $_POST['product_id'];
         $quantity = (int)$_POST['quantity'];
-        $cost_price = (float)$_POST['cost_price'];
+        $supplier_id = (int)$_POST['supplier_id'];
         
         if($quantity <= 0) {
             $error_message = "Please enter a valid quantity.";
-        } elseif($cost_price <= 0) {
-            $error_message = "Please enter a valid cost price.";
         } else {
             // Start transaction
             $conn->beginTransaction();
             
             try {
-                // Update product inventory
-                $update_sql = "UPDATE Product SET Quantity = Quantity + ? WHERE ID = ?";
-                $update_stmt = $conn->prepare($update_sql);
-                $update_stmt->execute([$quantity, $product_id]);
+                // Create new restock request
+                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Supplier_ID, Quantity, Status, RequestDate) 
+                               VALUES (?, ?, ?, 'Pending', NOW())";
+                $restock_stmt = $conn->prepare($restock_sql);
+                $restock_stmt->execute([$product_id, $supplier_id, $quantity]);
                 
-                // Calculate total cost
-                $total_cost = $quantity * $cost_price;
-                
-                // Update store balance - reduce by total cost
-                $update_balance_sql = "UPDATE Store SET Balance = Balance - ? WHERE ID = 1";
-                $update_balance_stmt = $conn->prepare($update_balance_sql);
-                $update_balance_stmt->execute([$total_cost]);
+                // Get the new restock request ID
+                $restock_id = $conn->lastInsertId();
                 
                 // Get product name
                 $name_sql = "SELECT Name FROM Product WHERE ID = ?";
@@ -57,15 +51,89 @@ try {
                 $name_stmt->execute([$product_id]);
                 $product_name = $name_stmt->fetchColumn();
                 
+                // Get supplier name
+                $supplier_sql = "SELECT Name FROM Supplier WHERE ID = ?";
+                $supplier_stmt = $conn->prepare($supplier_sql);
+                $supplier_stmt->execute([$supplier_id]);
+                $supplier_name = $supplier_stmt->fetchColumn();
+                
                 // Commit transaction
                 $conn->commit();
                 
-                $success_message = "Successfully restocked " . $quantity . " units of " . $product_name . " for $" . number_format($total_cost, 2) . ".";
+                $success_message = "Restock request #" . $restock_id . " for " . $quantity . " units of " . $product_name . " from " . $supplier_name . " has been submitted successfully.";
             } catch(PDOException $e) {
                 // Rollback transaction in case of error
                 $conn->rollBack();
-                $error_message = "Error processing restock: " . $e->getMessage();
+                $error_message = "Error processing restock request: " . $e->getMessage();
             }
+        }
+    }
+    
+    // Handle approving a restock request
+    if(isset($_POST['approve_restock']) && isset($_POST['restock_id'])) {
+        $restock_id = $_POST['restock_id'];
+        
+        // Start transaction
+        $conn->beginTransaction();
+        
+        try {
+            // Get restock request details
+            $request_sql = "SELECT r.Product_ID, r.Quantity, p.Buy_Price, p.Name as ProductName, s.Name as SupplierName
+                            FROM RestockRequest r
+                            JOIN Product p ON r.Product_ID = p.ID
+                            JOIN Supplier s ON r.Supplier_ID = s.ID
+                            WHERE r.ID = ?";
+            $request_stmt = $conn->prepare($request_sql);
+            $request_stmt->execute([$restock_id]);
+            $request = $request_stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if(!$request) {
+                throw new Exception("Restock request not found.");
+            }
+            
+            // Calculate total cost
+            $total_cost = $request['Quantity'] * $request['Buy_Price'];
+            
+            // Update product inventory
+            $update_sql = "UPDATE Product SET Quantity = Quantity + ? WHERE ID = ?";
+            $update_stmt = $conn->prepare($update_sql);
+            $update_stmt->execute([$request['Quantity'], $request['Product_ID']]);
+            
+            // Update store balance - reduce by total cost
+            $update_balance_sql = "UPDATE Store SET Balance = Balance - ? WHERE ID = 1";
+            $update_balance_stmt = $conn->prepare($update_balance_sql);
+            $update_balance_stmt->execute([$total_cost]);
+            
+            // Update restock request status
+            $update_request_sql = "UPDATE RestockRequest SET Status = 'Approved', CompletionDate = NOW() WHERE ID = ?";
+            $update_request_stmt = $conn->prepare($update_request_sql);
+            $update_request_stmt->execute([$restock_id]);
+            
+            // Commit transaction
+            $conn->commit();
+            
+            $success_message = "Restock request #" . $restock_id . " for " . $request['Quantity'] . " units of " . 
+                              $request['ProductName'] . " has been approved. Total cost: $" . number_format($total_cost, 2) . ".";
+        } catch(Exception $e) {
+            // Rollback transaction in case of error
+            $conn->rollBack();
+            $error_message = "Error approving restock request: " . $e->getMessage();
+        }
+    }
+    
+    // Handle rejecting a restock request
+    if(isset($_POST['reject_restock']) && isset($_POST['restock_id'])) {
+        $restock_id = $_POST['restock_id'];
+        
+        try {
+            // Update restock request status
+            $update_request_sql = "UPDATE RestockRequest SET Status = 'Rejected', CompletionDate = NOW() WHERE ID = ?";
+            $update_request_stmt = $conn->prepare($update_request_sql);
+            $update_request_stmt->execute([$restock_id]);
+            
+            $success_message = "Restock request #" . $restock_id . " has been rejected.";
+        } catch(PDOException $e) {
+            $error_message = "Error rejecting restock request: " . $e->getMessage();
         }
     }
     
@@ -76,9 +144,9 @@ try {
     $store_balance = $balance_stmt->fetchColumn();
     
     // Prepare query to retrieve inventory
-    $sql = "SELECT ID, Name, Quantity, Cost_Price, Sell_Price, Category 
-            FROM Product 
-            ORDER BY Category, Name";
+    $sql = "SELECT p.ID, p.Name, p.Quantity, p.Buy_Price, p.Sell_Price, p.Category 
+            FROM Product p
+            ORDER BY p.Category, p.Name";
     
     $stmt = $conn->prepare($sql);
     $stmt->execute();
@@ -112,6 +180,40 @@ try {
     $category_stmt = $conn->prepare($category_sql);
     $category_stmt->execute();
     $category_stats = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get all suppliers
+    $supplier_sql = "SELECT ID, Name, Category FROM Supplier ORDER BY Name";
+    $supplier_stmt = $conn->prepare($supplier_sql);
+    $supplier_stmt->execute();
+    $suppliers = $supplier_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get pending restock requests
+    $pending_sql = "SELECT r.ID, r.Product_ID, r.Supplier_ID, r.Quantity, r.Status, r.RequestDate,
+                          p.Name as ProductName, p.Buy_Price, p.Sell_Price,
+                          s.Name as SupplierName
+                   FROM RestockRequest r
+                   JOIN Product p ON r.Product_ID = p.ID
+                   JOIN Supplier s ON r.Supplier_ID = s.ID
+                   WHERE r.Status = 'Pending'
+                   ORDER BY r.RequestDate DESC";
+    $pending_stmt = $conn->prepare($pending_sql);
+    $pending_stmt->execute();
+    $pending_requests = $pending_stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get completed restock requests (approved or rejected)
+    $completed_sql = "SELECT r.ID, r.Product_ID, r.Supplier_ID, r.Quantity, r.Status, 
+                             r.RequestDate, r.CompletionDate,
+                             p.Name as ProductName, p.Buy_Price, p.Sell_Price,
+                             s.Name as SupplierName
+                      FROM RestockRequest r
+                      JOIN Product p ON r.Product_ID = p.ID
+                      JOIN Supplier s ON r.Supplier_ID = s.ID
+                      WHERE r.Status IN ('Approved', 'Rejected')
+                      ORDER BY r.CompletionDate DESC
+                      LIMIT 50";
+    $completed_stmt = $conn->prepare($completed_sql);
+    $completed_stmt->execute();
+    $completed_requests = $completed_stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch(PDOException $e) {
     echo "<div style='color:red; padding:20px; background-color:#ffeeee; border:1px solid #ff0000;'>";
@@ -208,6 +310,49 @@ tr:hover {
 .restock-btn:hover {
     background-color: #2e7d41; /* Consistent hover state */
 }
+.approve-btn {
+    background-color: #28a745; /* Green */
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.approve-btn:hover {
+    background-color: #218838;
+}
+.reject-btn {
+    background-color: #dc3545; /* Red */
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.reject-btn:hover {
+    background-color: #c82333;
+}
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.status-approved {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.status-rejected {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}
 /* Success message styling */
 .success-message {
     background-color: #d4edda;
@@ -243,7 +388,7 @@ tr:hover {
     margin: 15% auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 400px;
+    width: 500px;
     border-radius: 5px;
     text-align: center;
     border-top: 3px solid #1e5631; /* Added accent border */
@@ -261,7 +406,7 @@ tr:hover {
     margin-bottom: 5px;
     font-weight: bold;
 }
-.form-group input {
+.form-group input, .form-group select {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -426,6 +571,8 @@ select {
             <div class="tab">
                 <button class="tablinks active" onclick="openTab(event, 'InventoryTab')">Inventory</button>
                 <button class="tablinks" onclick="openTab(event, 'CategoryTab')">Categories</button>
+                <button class="tablinks" onclick="openTab(event, 'RestockTab')">Restock Requests</button>
+                <button class="tablinks" onclick="openTab(event, 'HistoryTab')">Restock History</button>
             </div>
             
             <!-- Inventory Tab -->
@@ -467,7 +614,7 @@ select {
                             <th>Product Name</th>
                             <th>Category</th>
                             <th>In Stock</th>
-                            <th>Cost Price</th>
+                            <th>Buy Price</th>
                             <th>Sell Price</th>
                             <th>Margin</th>
                             <th>Action</th>
@@ -506,19 +653,19 @@ select {
                             }
                             
                             // Calculate margin
-                            $margin = $product['Sell_Price'] - $product['Cost_Price'];
-                            $margin_percent = ($product['Cost_Price'] > 0) ? 
-                                              ($margin / $product['Cost_Price']) * 100 : 0;
+                            $margin = $product['Sell_Price'] - $product['Buy_Price'];
+                            $margin_percent = ($product['Buy_Price'] > 0) ? 
+                                              ($margin / $product['Buy_Price']) * 100 : 0;
                             
                             echo "<tr class='$row_class'>";
                             echo "<td>" . htmlspecialchars($product['Name']) . "</td>";
                             echo "<td>" . htmlspecialchars($product['Category']) . "</td>";
                             echo "<td>" . $product['Quantity'] . "</td>";
-                            echo "<td>$" . number_format($product['Cost_Price'], 2) . "</td>";
+                            echo "<td>$" . number_format($product['Buy_Price'], 2) . "</td>";
                             echo "<td>$" . number_format($product['Sell_Price'], 2) . "</td>";
                             echo "<td>" . number_format($margin_percent, 1) . "%</td>";
                             echo "<td>";
-                            echo "<button class='restock-btn' onclick='openRestockModal(" . $product['ID'] . ", \"" . htmlspecialchars($product['Name']) . "\", " . $product['Cost_Price'] . ")'>Restock</button>";
+                            echo "<button class='restock-btn' onclick='openRestockModal(" . $product['ID'] . ", \"" . htmlspecialchars($product['Name']) . "\", " . $product['Buy_Price'] . ")'>Restock</button>";
                             echo "</td>";
                             echo "</tr>";
                         }
@@ -543,7 +690,7 @@ select {
                     <tbody>
                         <?php
                         foreach($category_stats as $category) {
-                            $avg_price = ($category['product_count'] > 0) ? 
+                            $avg_price = ($category['total_quantity'] > 0) ? 
                                          $category['category_value'] / $category['total_quantity'] : 0;
                             
                             echo "<tr>";
@@ -558,35 +705,144 @@ select {
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Restock Requests Tab -->
+            <div id="RestockTab" class="tabcontent">
+                <h2>Pending Restock Requests</h2>
+                <?php if(empty($pending_requests)): ?>
+                <p>No pending restock requests.</p>
+                <?php else: ?>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Request #</th>
+                            <th>Product</th>
+                            <th>Supplier</th>
+                            <th>Quantity</th>
+                            <th>Total Cost</th>
+                            <th>Date Requested</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        foreach($pending_requests as $request) {
+                            $total_cost = $request['Quantity'] * $request['Buy_Price'];
+                            
+                            echo "<tr>";
+                            echo "<td>#" . $request['ID'] . "</td>";
+                            echo "<td>" . htmlspecialchars($request['ProductName']) . "</td>";
+                            echo "<td>" . htmlspecialchars($request['SupplierName']) . "</td>";
+                            echo "<td>" . $request['Quantity'] . "</td>";
+                            echo "<td>$" . number_format($total_cost, 2) . "</td>";
+                            echo "<td>" . date('M d, Y', strtotime($request['RequestDate'])) . "</td>";
+                            echo "<td>";
+                            
+                            // Approval form
+                            echo "<form method='POST' action='' style='display: inline;'>";
+                            echo "<input type='hidden' name='approve_restock' value='1'>";
+                            echo "<input type='hidden' name='restock_id' value='" . $request['ID'] . "'>";
+                            echo "<button type='submit' class='approve-btn'>Approve</button>";
+                            echo "</form> ";
+                            
+                            // Rejection form
+                            echo "<form method='POST' action='' style='display: inline;'>";
+                            echo "<input type='hidden' name='reject_restock' value='1'>";
+                            echo "<input type='hidden' name='restock_id' value='" . $request['ID'] . "'>";
+                            echo "<button type='submit' class='reject-btn'>Reject</button>";
+                            echo "</form>";
+                            
+                            echo "</td>";
+                            echo "</tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Restock History Tab -->
+            <div id="HistoryTab" class="tabcontent">
+                <h2>Restock History</h2>
+                <?php if(empty($completed_requests)): ?>
+                <p>No completed restock requests.</p>
+                <?php else: ?>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Request #</th>
+                            <th>Product</th>
+                            <th>Supplier</th>
+                            <th>Quantity</th>
+                            <th>Total Cost</th>
+                            <th>Status</th>
+                            <th>Request Date</th>
+                            <th>Completion Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        foreach($completed_requests as $request) {
+                            $total_cost = $request['Quantity'] * $request['Buy_Price'];
+                            $status_class = ($request['Status'] == 'Approved') ? 'status-approved' : 'status-rejected';
+                            
+                            echo "<tr>";
+                            echo "<td>#" . $request['ID'] . "</td>";
+                            echo "<td>" . htmlspecialchars($request['ProductName']) . "</td>";
+                            echo "<td>" . htmlspecialchars($request['SupplierName']) . "</td>";
+                            echo "<td>" . $request['Quantity'] . "</td>";
+                            echo "<td>$" . number_format($total_cost, 2) . "</td>";
+                            echo "<td><span class='$status_class'>" . $request['Status'] . "</span></td>";
+                            echo "<td>" . date('M d, Y', strtotime($request['RequestDate'])) . "</td>";
+                            echo "<td>" . date('M d, Y', strtotime($request['CompletionDate'])) . "</td>";
+                            echo "</tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     
     <!-- Restock Modal -->
     <div id="restockModal" class="modal">
         <div class="modal-content">
-            <h2>Restock Inventory</h2>
+            <h2>Request Restock</h2>
             <p>Enter restock details for <span id="product-name-display"></span></p>
             
             <form id="restock-form" method="POST" action="">
                 <div class="form-group">
-                    <label for="quantity">Quantity to Add:</label>
+                    <label for="quantity">Quantity to Request:</label>
                     <input type="number" id="quantity" name="quantity" min="1" required>
                 </div>
                 <div class="form-group">
-                    <label for="cost_price">Cost Price Per Unit:</label>
-                    <input type="number" id="cost_price" name="cost_price" min="0.01" step="0.01" required>
+                    <label for="supplier_id">Select Supplier:</label>
+                    <select id="supplier_id" name="supplier_id" required>
+                        <option value="">-- Select Supplier --</option>
+                        <?php
+                        foreach($suppliers as $supplier) {
+                            echo "<option value='" . $supplier['ID'] . "'>" . htmlspecialchars($supplier['Name']) . 
+                                 " (" . htmlspecialchars($supplier['Category']) . ")</option>";
+                        }
+                        ?>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label for="total_cost">Total Cost:</label>
+                    <label for="buy_price">Buy Price Per Unit:</label>
+                    <input type="number" id="buy_price" name="buy_price" min="0.01" step="0.01" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="total_cost">Estimated Total Cost:</label>
                     <input type="text" id="total_cost" readonly>
                 </div>
                 
-                <input type="hidden" name="restock_inventory" value="1">
+                <input type="hidden" name="submit_restock" value="1">
                 <input type="hidden" name="product_id" id="product_id" value="">
                 
                 <div class="form-buttons">
                     <button type="button" onclick="closeRestockModal()" style="background-color: #999; color: white;">Cancel</button>
-                    <button type="submit" style="background-color: #1e5631; color: white;">Confirm Restock</button>
+                    <button type="submit" style="background-color: #1e5631; color: white;">Submit Request</button>
                 </div>
             </form>
         </div>
@@ -613,10 +869,10 @@ select {
         }
         
         // Function to open restock modal
-        function openRestockModal(productId, productName, costPrice) {
+        function openRestockModal(productId, productName, buyPrice) {
             document.getElementById('product-name-display').textContent = productName;
             document.getElementById('product_id').value = productId;
-            document.getElementById('cost_price').value = costPrice.toFixed(2);
+            document.getElementById('buy_price').value = buyPrice.toFixed(2);
             document.getElementById('quantity').value = 1;
             
             // Calculate initial total cost
@@ -633,17 +889,16 @@ select {
         // Function to calculate total cost
         function calculateTotalCost() {
             const quantity = document.getElementById('quantity').value;
-            const costPrice = document.getElementById('cost_price').value;
-            const totalCost = quantity * costPrice;
+            const buyPrice = document.getElementById('buy_price').value;
+            const totalCost = quantity * buyPrice;
             
-            document.getElementById('total_cost').value = '$' + totalCost.toFixed(2);
+            document.getElementById('total_cost').value = ' + totalCost.toFixed(2);
         }
         
         // Attach event listeners
         document.addEventListener('DOMContentLoaded', function() {
             // Calculate total cost when values change
             document.getElementById('quantity').addEventListener('input', calculateTotalCost);
-            document.getElementById('cost_price').addEventListener('input', calculateTotalCost);
             
             // Close modal when clicking outside
             window.addEventListener('click', function(event) {
