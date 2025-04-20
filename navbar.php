@@ -4,10 +4,11 @@
 ?>
 <style>
   nav {
-    background-color: #333;
+    background-color: #4CAF50;
     padding: 15px 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   }
+
   nav ul {
     list-style: none;
     margin: 0;
@@ -19,45 +20,55 @@
     max-width: 1200px;
     margin: 0 auto;
   }
+
   nav ul li a {
     text-decoration: none;
-    color: #f2f2f2;
+    color: white;
     font-weight: bold;
     transition: all 0.3s ease;
     padding: 8px 15px;
-    border-radius: 3px;
+    border-radius: 4px;
     font-size: 16px;
   }
+
   nav ul li a:hover {
-    color: #ffcc00;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: #45a049;
+    color: #fff;
   }
+
   nav ul li a.active {
-    color: #ffcc00;
+    background-color: #388E3C;
+    color: white;
     border-bottom: 2px solid #ffcc00;
   }
+
   .logo {
     font-size: 22px;
     font-weight: bold;
     color: #ffcc00;
     margin-right: 20px;
   }
-  body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    padding-top: 0; /* Adjust if needed for fixed navbar */
+
+  /* Invisible links (Orders & Inventory) */
+  .invisible-link {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
   }
-  /* Add spacing for cart button */
-  .nav-spacer {
-    margin-top: 70px; /* Adjust to match navbar height */
+
+  /* Become visible when hovered individually */
+  .invisible-link:hover,
+  nav ul li:hover .invisible-link {
+    opacity: 1;
+    pointer-events: auto;
   }
 </style>
 <nav>
   <ul>
-    <li class="logo">Grocery Store</li>
+    <li class="logo">PubliCS</li>
     <li><a href="/index.php" class="<?= $currentPage === 'index.php' ? 'active' : '' ?>">Home</a></li>
     <li><a href="/products.php" class="<?= $currentPage === 'products.php' ? 'active' : '' ?>">Products</a></li>
-    <li><a href="/orders.php" class="<?= $currentPage === 'orders.php' ? 'active' : '' ?>">Orders</a></li>
-    <li><a href="/inventory.php" class="<?= $currentPage === 'inventory.php' ? 'active' : '' ?>">Inventory</a></li>
+    <li><a href="/orders.php" class="invisible-link <?= $currentPage === 'orders.php' ? 'active' : '' ?>">Orders</a></li>
+    <li><a href="/inventory.php" class="invisible-link <?= $currentPage === 'inventory.php' ? 'active' : '' ?>">Inventory</a></li>
   </ul>
 </nav>
