@@ -66,22 +66,16 @@ try {
                     $total_sale_amount += $item['price'] * $item['quantity'];
                 }
                 
-                // Update store balance
+                // Update store balance (we keep this for database integrity, but don't show it to the user)
                 $update_balance_sql = "UPDATE Store SET Balance = Balance + ? WHERE ID = 1";
                 $update_balance_stmt = $conn->prepare($update_balance_sql);
                 $update_balance_stmt->execute([$total_sale_amount]);
                 
-                // Get the current store balance
-                $balance_sql = "SELECT Balance FROM Store WHERE ID = 1";
-                $balance_stmt = $conn->prepare($balance_sql);
-                $balance_stmt->execute();
-                $current_balance = $balance_stmt->fetchColumn();
-                
                 // Commit transaction
                 $conn->commit();
                 
-                // Set success message in session
-                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully! Store balance updated to $" . number_format($current_balance, 2);
+                // Set success message in session - removed store balance mention
+                $_SESSION['order_success'] = "Order #" . $order_id . " has been placed successfully!";
                 
                 // Redirect to prevent form resubmission
                 header("Location: " . $_SERVER['PHP_SELF']);
@@ -364,22 +358,22 @@ select {
     color: #721c24;
     font-weight: bold;
 }
-/* Store balance styling */
-.store-info {
-    background-color: #e9f5fb;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-    border: 1px solid #b8e1f3;
-    text-align: right;
-}
-.store-balance {
-    font-weight: bold;
-    color: #0077b6;
-}
     </style>
 </head>
 <body>
+    <!-- Success/Error Message Display -->
+    <?php if(isset($success_message)): ?>
+    <div class="success-message container">
+        <?php echo $success_message; ?>
+    </div>
+    <?php endif; ?>
+    
+    <?php if(isset($error_message)): ?>
+    <div class="error-message container">
+        <?php echo $error_message; ?>
+    </div>
+    <?php endif; ?>
+    
     <div id="cart-container" style="display: none;">
         <h3>Shopping Cart</h3>
         <div id="cart-items">
@@ -415,22 +409,6 @@ select {
 
     <div class="container">
         <h1>Products</h1>
-        
-        <?php
-        // Get current store balance
-        try {
-            $balance_sql = "SELECT Balance FROM Store WHERE ID = 1";
-            $balance_stmt = $conn->prepare($balance_sql);
-            $balance_stmt->execute();
-            $current_balance = $balance_stmt->fetchColumn();
-            
-            echo '<div class="store-info">';
-            echo '<span class="store-balance">Store Balance: $' . number_format($current_balance, 2) . '</span>';
-            echo '</div>';
-        } catch(PDOException $e) {
-            // Silent fail - just don't show the balance
-        }
-        ?>
         
         <div class="search-container">
             <form action="" method="GET">
