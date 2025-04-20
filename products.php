@@ -7,6 +7,35 @@ ini_set('display_errors', 1);
 // Start session for order tracking
 session_start();
 
+// Process form submissions with their own cart data
+if((isset($_POST['register_customer']) || isset($_POST['find_customer'])) && isset($_POST['cart_data_json'])) {
+    // Store the cart data in session
+    $_SESSION['preserved_cart'] = $_POST['cart_data_json'];
+}
+
+// Handle database logic and other PHP operations...
+
+// Then, before the <!DOCTYPE html> tag, add this script to restore cart
+if(isset($_SESSION['preserved_cart'])) {
+    echo "<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Restore cart from session
+        try {
+            const preservedCart = JSON.parse('" . addslashes($_SESSION['preserved_cart']) . "');
+            if(preservedCart && Array.isArray(preservedCart)) {
+                localStorage.setItem('cart', JSON.stringify(preservedCart));
+                console.log('Cart restored from session');
+            }
+        } catch(e) {
+            console.error('Error restoring cart:', e);
+        }
+    });
+    </script>";
+    
+    // Clear the session variable
+    unset($_SESSION['preserved_cart']);
+}
+
 // Database connection parameters
 $servername = "localhost";
 $username = "root";
@@ -544,6 +573,44 @@ select {
     </style>
 </head>
 <body>
+    <script>
+        // Function to prepare the form for submission by storing cart data
+        function prepareFormSubmit(cartFieldId) {
+            try {
+                // Get current cart from localStorage and store in form
+                const currentCart = localStorage.getItem('cart');
+                document.getElementById(cartFieldId).value = currentCart;
+                
+                // Also store cart in sessionStorage as a backup
+                sessionStorage.setItem('backup_cart', currentCart);
+                
+                return true; // Allow form submission to proceed
+            } catch(e) {
+                console.error('Error saving cart data:', e);
+                return true; // Still allow form submission even if saving fails
+            }
+        }
+
+        // Add this to your DOMContentLoaded event handler
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for backup cart in sessionStorage
+            const backupCart = sessionStorage.getItem('backup_cart');
+            if(backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
+                localStorage.setItem('cart', backupCart);
+                sessionStorage.removeItem('backup_cart');
+                console.log('Cart restored from sessionStorage backup');
+                
+                // Update UI based on restored cart
+                try {
+                    cart = JSON.parse(backupCart);
+                    updateCartDisplay();
+                    updateCartBadge();
+                } catch(e) {
+                    console.error('Error parsing backup cart:', e);
+                }
+            }
+        });
+    </script>
     <!-- Success/Error Message Display -->
     <?php if(isset($success_message)): ?>
     <div class="success-message container">
@@ -608,13 +675,12 @@ select {
                             <input type="email" id="customer_email" name="customer_email" required>
                         </div>
                         <input type="hidden" name="find_customer" value="1">
-                        <input type="hidden" name="cart_data_json" id="cart_data_json_existing" value="">
-                        <button type="submit" class="btn-block" onclick="saveCartData('cart_data_json_existing')">Find Account</button>
+                        <input type="hidden" name="cart_data_json" id="cart_data_json_existing">
+                        <button type="submit" class="btn-block" onclick="return prepareFormSubmit('cart_data_json_existing')">Find Account</button>
                     </form>
                 </div>
-                
+
                 <div id="NewCustomer" class="tabcontent">
-                    <form id="new-customer-form" method="POST" action="">
                         <div class="form-group">
                             <label for="new_customer_name">Full Name:</label>
                             <input type="text" id="new_customer_name" name="customer_name" required>
@@ -628,8 +694,8 @@ select {
                             <input type="text" id="customer_address" name="customer_address" required>
                         </div>
                         <input type="hidden" name="register_customer" value="1">
-                        <input type="hidden" name="cart_data_json" id="cart_data_json_new" value="">
-                        <button type="submit" class="btn-block" onclick="saveCartData('cart_data_json_new')">Register & Continue</button>
+                        <input type="hidden" name="cart_data_json" id="cart_data_json_new">
+                        <button type="submit" class="btn-block" onclick="return prepareFormSubmit('cart_data_json_new')">Register & Continue</button>
                     </form>
                 </div>
                 
