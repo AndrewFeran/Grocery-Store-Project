@@ -80,13 +80,19 @@ try {
             JOIN OrderItem oi ON o.ID = oi.Order_ID
             JOIN Product p ON oi.Product_ID = p.ID
             GROUP BY o.ID
-            ORDER BY o.ID DESC";
+            ORDER BY o.OrderDate DESC";
     
     $stmt = $conn->prepare($sql);
     $stmt->execute();
     
     // Set fetch mode to associative array
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get store balance
+    $balance_sql = "SELECT Balance FROM Store WHERE ID = 1";
+    $balance_stmt = $conn->prepare($balance_sql);
+    $balance_stmt->execute();
+    $store_balance = $balance_stmt->fetchColumn();
     
 } catch(PDOException $e) {
     echo "<div style='color:red; padding:20px; background-color:#ffeeee; border:1px solid #ff0000;'>";
@@ -316,6 +322,12 @@ tr:hover {
     
     <div class="container">
         <h1>Orders</h1>
+        
+        <!-- Store Balance Section -->
+        <div class="store-balance">
+            <h3>Store Balance:</h3>
+            <span class="amount">$<?php echo number_format($store_balance, 2); ?></span>
+        </div>
         
         <div class="search-container">
             <form action="" method="GET">
