@@ -431,8 +431,13 @@ tr:hover {
             fetch('get_order_details.php?order_id=' + orderId)
                 .then(response => response.json())
                 .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    
                     // Populate modal with order details
-                    document.getElementById('modal-order-id').textContent = '#' + orderId;
+                    document.getElementById('modal-order-id').textContent = '#' + data.order_id;
                     document.getElementById('modal-customer-name').textContent = data.customer;
                     document.getElementById('modal-order-date').textContent = data.date;
                     
@@ -444,14 +449,16 @@ tr:hover {
                     let total = 0;
                     data.items.forEach(item => {
                         const row = document.createElement('tr');
+                        const subtotal = parseFloat(item.Price) * parseInt(item.Quantity);
+                        
                         row.innerHTML = `
-                            <td>${item.name}</td>
-                            <td>$${parseFloat(item.price).toFixed(2)}</td>
-                            <td>${item.quantity}</td>
-                            <td>$${parseFloat(item.subtotal).toFixed(2)}</td>
+                            <td>${item.Name}</td>
+                            <td>${parseFloat(item.Price).toFixed(2)}</td>
+                            <td>${item.Quantity}</td>
+                            <td>${subtotal.toFixed(2)}</td>
                         `;
                         detailsBody.appendChild(row);
-                        total += parseFloat(item.subtotal);
+                        total += subtotal;
                     });
                     
                     // Update total

@@ -44,8 +44,7 @@ try {
     
     // Prepare query to retrieve order items
     $items_query = "SELECT p.ID as ProductID, p.Name, p.Sell_Price as Price, 
-                      COUNT(oi.ID) as Quantity,
-                      (COUNT(oi.ID) * p.Sell_Price) as Subtotal
+                      COUNT(oi.ID) as Quantity
                     FROM OrderItem oi
                     JOIN Product p ON oi.Product_ID = p.ID
                     WHERE oi.Order_ID = ?
