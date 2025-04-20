@@ -305,20 +305,21 @@ tr:hover {
     cursor: pointer;
 }
 .store-balance-banner {
-    background-color: #eaf7fd; /* Light blue background from your example */
+    background-color: #eaf7fd; /* Light blue background */
     padding: 10px 15px;
-    border-bottom: 1px solid #b8e1f3; /* Border color from your example */
-    margin-bottom: 20px;
+    border: 1px solid #0077b6; /* Thin dark blue border matching text color */
+    margin: 20px auto; /* Space between navbar and content */
     display: flex;
-    justify-content: flex-end; /* Right-aligned like your example */
+    justify-content: center; /* Center-aligned text */
     align-items: center;
-    width: 100%;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    max-width: 1200px; /* Match container width */
+    border-radius: 5px;
+    text-align: center;
 }
 .store-balance-banner .amount {
     font-weight: bold;
-    font-size: 16px;
-    color: #0077b6; /* Blue text color from your example */
+    font-size: 18px;
+    color: #0077b6; /* Blue text color */
 }
     </style>
 </head>
@@ -336,7 +337,7 @@ tr:hover {
     </div>
     <?php endif; ?>
     
-    <!-- Store Balance Banner (immediately after navbar) -->
+    <!-- Store Balance Banner (between navbar and main content) -->
     <div class="store-balance-banner">
         <span class="amount">Store Balance: $<?php echo number_format($store_balance, 2); ?></span>
     </div>
