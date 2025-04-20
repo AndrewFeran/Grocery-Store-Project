@@ -7,11 +7,29 @@ ini_set('display_errors', 1);
 // Start session for order tracking
 session_start();
 
-// Process cart data from form submissions
-if (isset($_POST['cart_data_json']) && !empty($_POST['cart_data_json'])) {
-    // Store the cart data in session
-    $_SESSION['preserved_cart'] = $_POST['cart_data_json'];
-    error_log('Cart data preserved in session: ' . substr($_POST['cart_data_json'], 0, 100) . '...');
+// Store cart data directly in PHP session
+if(isset($_POST['cart_data_json']) && !empty($_POST['cart_data_json'])) {
+    // Store cart in session - we're using a different variable name to avoid confusion
+    $_SESSION['cart_data'] = $_POST['cart_data_json'];
+    error_log("Cart saved to session: " . substr($_POST['cart_data_json'], 0, 50) . "...");
+}
+
+// Check if we need to reset the cart after order completion
+if(isset($_SESSION['order_success']) && !isset($_SESSION['cart_reset'])) {
+    // Set a flag to indicate cart should be reset
+    $_SESSION['cart_reset'] = true;
+} elseif(isset($_SESSION['cart_reset']) && $_SESSION['cart_reset'] === true) {
+    // Clear the reset flag and ensure cart is empty
+    unset($_SESSION['cart_reset']);
+    unset($_SESSION['cart_data']);
+    // Add a script to clear localStorage/sessionStorage
+    echo "<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        localStorage.removeItem('cart');
+        sessionStorage.removeItem('backup_cart');
+        console.log('Cart cleared after order completion');
+    });
+    </script>";
 }
 
 // Database connection parameters
@@ -194,38 +212,6 @@ try {
     echo "</div>";
     exit();
 }
-
-// Restore cart data if needed
-if (isset($_SESSION['preserved_cart']) && !empty($_SESSION['preserved_cart'])) {
-    echo "<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Restore cart from session
-        try {
-            const preservedCart = '" . addslashes($_SESSION['preserved_cart']) . "';
-            if (preservedCart) {
-                localStorage.setItem('cart', preservedCart);
-                console.log('Cart restored from PHP session');
-                
-                // Reload cart data for JavaScript
-                if (typeof cart !== 'undefined') {
-                    cart = JSON.parse(preservedCart);
-                    if (typeof updateCartDisplay === 'function') {
-                        updateCartDisplay();
-                    }
-                    if (typeof updateCartBadge === 'function') {
-                        updateCartBadge();
-                    }
-                }
-            }
-        } catch(e) {
-            console.error('Error restoring cart from PHP session:', e);
-        }
-    });
-    </script>";
-    
-    // Clear the session variable
-    unset($_SESSION['preserved_cart']);
-}
 ?>
 
 <!DOCTYPE html>
@@ -234,6 +220,29 @@ if (isset($_SESSION['preserved_cart']) && !empty($_SESSION['preserved_cart'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products</title>
+    
+    <!-- Add this script to the head section to restore cart data as early as possible -->
+    <?php if(isset($_SESSION['cart_data']) && !isset($_SESSION['cart_reset'])): ?>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            // Get cart from session
+            const cartData = <?php echo $_SESSION['cart_data']; ?>;
+            
+            // Check if there's anything in the current cart
+            const currentCart = localStorage.getItem('cart');
+            if(!currentCart || currentCart === '[]') {
+                // Only restore if current cart is empty
+                localStorage.setItem('cart', JSON.stringify(cartData));
+                console.log('Cart restored from session');
+            }
+        } catch(e) {
+            console.error('Error restoring cart:', e);
+        }
+    });
+    </script>
+    <?php endif; ?>
+    
     <style>
 body {
     font-family: Arial, sans-serif;
@@ -337,7 +346,7 @@ select {
     max-height: 300px;
     overflow-y: auto;
 }
-
+/* Update the cart-item styling to align items properly */
 .cart-item {
     display: flex;
     justify-content: space-between;
@@ -367,7 +376,6 @@ select {
     font-size: 18px;
     font-weight: bold;
 }
-
 .cart-total {
     margin-top: 10px;
     font-weight: bold;
@@ -643,7 +651,7 @@ select {
                         </div>
                         <input type="hidden" name="find_customer" value="1">
                         <input type="hidden" name="cart_data_json" id="cart_data_json_existing">
-                        <button type="button" class="btn-block" onclick="submitExistingCustomerForm()">Find Account</button>
+                        <button type="button" class="btn-block" id="find-account-btn">Find Account</button>
                     </form>
                 </div>
                 
@@ -663,7 +671,7 @@ select {
                         </div>
                         <input type="hidden" name="register_customer" value="1">
                         <input type="hidden" name="cart_data_json" id="cart_data_json_new">
-                        <button type="button" class="btn-block" onclick="submitNewCustomerForm()">Register & Continue</button>
+                        <button type="button" class="btn-block" id="register-customer-btn">Register & Continue</button>
                     </form>
                 </div>
                 
@@ -812,310 +820,332 @@ select {
         </table>
         
         <div style="margin-top: 20px; text-align: right;">
-            <p>Total Products: <?php echo isset($result) ? count($result) : 0; ?></p>
-        </div>
-    </div>
+            <p>Total Products: <?php
+echo isset($result) ? count($result) : 0; ?></p>
+</div>
+</div>
 
-    <!-- Checkout form (hidden) -->
-    <form id="checkout-form" method="POST" action="" style="display: none;">
-        <input type="hidden" name="checkout" value="1">
-        <input type="hidden" name="cart_data" id="cart_data" value="">
-        <input type="hidden" name="customer_id" id="customer_id" value="">
-    </form>
+<!-- Checkout form (hidden) -->
+<form id="checkout-form" method="POST" action="" style="display: none;">
+<input type="hidden" name="checkout" value="1">
+<input type="hidden" name="cart_data" id="cart_data" value="">
+<input type="hidden" name="customer_id" id="customer_id" value="">
+</form>
 
-    <script>
-        // Initialize cart from localStorage or as empty array
-        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+<script>
+// Initialize cart from localStorage or as empty array
+let cart = JSON.parse(localStorage.getItem('cart')) || [];
+
+// Display cart on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateCartDisplay();
+    updateCartBadge();
+    
+    // Listen for the custom event from navbar cart button
+    document.addEventListener('toggleCart', function() {
+        const cartContainer = document.getElementById('cart-container');
+        if (cartContainer.style.display === 'none') {
+            cartContainer.style.display = 'block';
+        } else {
+            cartContainer.style.display = 'none';
+        }
+    });
+    
+    // Show success modal if there's a success message
+    <?php if(isset($success_message)): ?>
+    // Clear the cart after successful order
+    cart = [];
+    localStorage.setItem('cart', JSON.stringify(cart));
+    sessionStorage.removeItem('backup_cart'); // Add this line
+    updateCartDisplay();
+    updateCartBadge();
+    
+    // Show success modal with the message
+    document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
+    document.getElementById('success-modal').style.display = 'block';
+    <?php endif; ?>
+    
+    // Check for backup cart in sessionStorage
+    const backupCart = sessionStorage.getItem('backup_cart');
+    if (backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
+        console.log('Restoring cart from backup');
+        localStorage.setItem('cart', backupCart);
+        sessionStorage.removeItem('backup_cart');
         
-        // Display cart on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        // Update UI based on restored cart
+        try {
+            cart = JSON.parse(backupCart);
             updateCartDisplay();
             updateCartBadge();
-            
-            // Listen for the custom event from navbar cart button
-            document.addEventListener('toggleCart', function() {
-                const cartContainer = document.getElementById('cart-container');
-                if (cartContainer.style.display === 'none') {
-                    cartContainer.style.display = 'block';
-                } else {
-                    cartContainer.style.display = 'none';
-                }
-            });
-            
-            // Show success modal if there's a success message
-            <?php if(isset($success_message)): ?>
-                // Clear the cart after successful order
-                cart = [];
-                localStorage.setItem('cart', JSON.stringify(cart));
-                sessionStorage.removeItem('backup_cart'); // Add this line
-                updateCartDisplay();
-                updateCartBadge();
-
-                // Show success modal with the message
-                document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
-                document.getElementById('success-modal').style.display = 'block';
-                <?php endif; ?>
-            
-            // Check for backup cart in sessionStorage
-            const backupCart = sessionStorage.getItem('backup_cart');
-            if (backupCart && (!localStorage.getItem('cart') || localStorage.getItem('cart') === '[]')) {
-                console.log('Restoring cart from backup');
-                localStorage.setItem('cart', backupCart);
-                sessionStorage.removeItem('backup_cart');
-                
-                // Update UI based on restored cart
-                try {
-                    cart = JSON.parse(backupCart);
-                    updateCartDisplay();
-                    updateCartBadge();
-                } catch(e) {
-                    console.error('Error parsing backup cart:', e);
-                }
-            }
+        } catch(e) {
+            console.error('Error parsing backup cart:', e);
+        }
+    }
+    
+    // Attach event listeners for the form buttons
+    const findAccountBtn = document.getElementById('find-account-btn');
+    if(findAccountBtn) {
+        findAccountBtn.addEventListener('click', function() {
+            submitExistingCustomerForm();
         });
-        
-        // Function to submit the existing customer form
-        function submitExistingCustomerForm() {
-            // Check if form is valid
-            const form = document.getElementById('existing-customer-form');
-            if (form.checkValidity()) {
-                // Save cart data to the form
-                const currentCart = localStorage.getItem('cart');
-                document.getElementById('cart_data_json_existing').value = currentCart;
-                
-                // Save to session storage as backup
-                try {
-                    sessionStorage.setItem('backup_cart', currentCart);
-                    console.log('Cart saved to sessionStorage');
-                } catch(e) {
-                    console.error('Failed to save to sessionStorage:', e);
-                }
-                
-                // Submit the form
-                form.submit();
-            } else {
-                // Trigger form validation
-                form.reportValidity();
-            }
-        }
+    }
+    
+    const registerCustomerBtn = document.getElementById('register-customer-btn');
+    if(registerCustomerBtn) {
+        registerCustomerBtn.addEventListener('click', function() {
+            submitNewCustomerForm();
+        });
+    }
+});
 
-        // Function to submit the new customer form
-        function submitNewCustomerForm() {
-            // Check if form is valid
-            const form = document.getElementById('new-customer-form');
-            if (form.checkValidity()) {
-                // Save cart data to the form
-                const currentCart = localStorage.getItem('cart');
-                document.getElementById('cart_data_json_new').value = currentCart;
-                
-                // Save to session storage as backup
-                try {
-                    sessionStorage.setItem('backup_cart', currentCart);
-                    console.log('Cart saved to sessionStorage');
-                } catch(e) {
-                    console.error('Failed to save to sessionStorage:', e);
-                }
-                
-                // Submit the form
-                form.submit();
-            } else {
-                // Trigger form validation
-                form.reportValidity();
-            }
+// Function to submit the existing customer form
+function submitExistingCustomerForm() {
+    // Check if form is valid
+    const form = document.getElementById('existing-customer-form');
+    if (form.checkValidity()) {
+        // Save cart data to the form
+        const cartJson = JSON.stringify(cart);
+        document.getElementById('cart_data_json_existing').value = cartJson;
+        
+        // Save to session storage as backup
+        try {
+            sessionStorage.setItem('backup_cart', cartJson);
+            console.log('Cart saved to sessionStorage');
+        } catch(e) {
+            console.error('Failed to save to sessionStorage:', e);
         }
         
-        // Function to add item to cart
-        function addToCart(id, name, price, quantity, maxQuantity) {
-            quantity = parseInt(quantity);
-            if (quantity <= 0) {
-                alert('Please enter a valid quantity');
-                return;
-            }
-            
-            if (quantity > maxQuantity) {
-                alert(`Sorry, only ${maxQuantity} items in stock!`);
-                return;
-            }
-            
-            // Check if product already exists in cart
-            const existingItemIndex = cart.findIndex(item => item.id === id);
-            
-            if (existingItemIndex !== -1) {
-                // Update quantity if not exceeding stock
-                const newQuantity = cart[existingItemIndex].quantity + quantity;
-                if (newQuantity > maxQuantity) {
-                    alert(`Sorry, adding ${quantity} more would exceed available stock. You already have ${cart[existingItemIndex].quantity} in your cart.`);
-                    return;
-                }
-                cart[existingItemIndex].quantity = newQuantity;
-            } else {
-                // Add new item
-                cart.push({
-                    id: id,
-                    name: name,
-                    price: price,
-                    quantity: quantity,
-                    maxQuantity: maxQuantity
-                });
-            }
-            
-            // Save to localStorage
-            localStorage.setItem('cart', JSON.stringify(cart));
-            
-            // Update UI
-            updateCartDisplay();
-            updateCartBadge();
-            
-            // Show confirmation
-            alert(`${quantity} x ${name} added to cart!`);
-        }
+        // Debug output
+        console.log('Cart saved before form submission:', cartJson);
         
-        // Function to remove item from cart
-        function removeFromCart(index) {
-            cart.splice(index, 1);
-            localStorage.setItem('cart', JSON.stringify(cart));
-            updateCartDisplay();
-            updateCartBadge();
-        }
-        
-        // Function to clear cart
-        function clearCart() {
-            if (confirm('Are you sure you want to clear your cart?')) {
-                cart = [];
-                localStorage.setItem('cart', JSON.stringify(cart));
-                updateCartDisplay();
-                updateCartBadge();
-            }
-        }
-        
-        // Function to open checkout confirmation modal
-        function checkoutConfirm() {
-            if (cart.length === 0) {
-                alert('Your cart is empty!');
-                return;
-            }
-            
-            document.getElementById('checkout-modal').style.display = 'block';
-        }
-        
-        // Function to close checkout modal
-        function closeModal() {
-            document.getElementById('checkout-modal').style.display = 'none';
-        }
-        
-        // Function to close success modal
-        function closeSuccessModal() {
-            document.getElementById('success-modal').style.display = 'none';
-        }
-        
-        // Function to complete checkout with customer ID
-        function completeCheckout(customerId) {
-            if (cart.length === 0) {
-                alert('Your cart is empty!');
-                return;
-            }
-            
-            // Set the cart data and customer ID in the hidden form fields
-            document.getElementById('cart_data').value = JSON.stringify(cart);
-            document.getElementById('customer_id').value = customerId;
-            
-            // Clear the cart from localStorage and sessionStorage before submitting
-            // This ensures the cart is cleared even if the page reload doesn't work
-            localStorage.removeItem('cart');
-            sessionStorage.removeItem('backup_cart');
-            
-            // Submit the form
-            document.getElementById('checkout-form').submit();
-        }
-        
-        // Function to update cart display
-        function updateCartDisplay() {
-            const cartItemsContainer = document.getElementById('cart-items');
-            const cartTotalElement = document.getElementById('cart-total');
-            
-            // Clear current items
-            cartItemsContainer.innerHTML = '';
-            
-            if (cart.length === 0) {
-                cartItemsContainer.innerHTML = '<p>Your cart is empty</p>';
-                cartTotalElement.textContent = '0.00';
-                return;
-            }
-            
-            let totalPrice = 0;
-            
-            // Add each item to the cart display with improved structure
-            cart.forEach((item, index) => {
-                const itemTotal = item.price * item.quantity;
-                totalPrice += itemTotal;
-                
-                const itemElement = document.createElement('div');
-                itemElement.className = 'cart-item';
-                itemElement.innerHTML = `
-                    <div class="cart-item-info">
-                        ${item.name} x ${item.quantity}
-                    </div>
-                    <div class="cart-item-actions">
-                        <span>$${itemTotal.toFixed(2)}</span>
-                        <span class="remove-item" onclick="removeFromCart(${index})">×</span>
-                    </div>
-                `;
-                cartItemsContainer.appendChild(itemElement);
-            });
-            
-            // Update total
-            cartTotalElement.textContent = totalPrice.toFixed(2);
-        }
-        
-        // Update cart badge with number of items
-        function updateCartBadge() {
-            const badge = document.getElementById('cart-badge');
-            const itemCount = cart.reduce((total, item) => total + parseInt(item.quantity || 0), 0);
-            
-            badge.textContent = itemCount;
-            badge.style.display = itemCount > 0 ? 'inline' : 'none';
-        }
-        
-        // Increment quantity input
-        function incrementQuantity(inputId, max) {
-            const input = document.getElementById(inputId);
-            const currentVal = parseInt(input.value);
-            if (currentVal < max) {
-                input.value = currentVal + 1;
-            }
-        }
-        
-        // Decrement quantity input
-        function decrementQuantity(inputId) {
-            const input = document.getElementById(inputId);
-            const currentVal = parseInt(input.value);
-            if (currentVal > 1) {
-                input.value = currentVal - 1;
-            }
-        }
-        
-        // Function to switch between tabs in the checkout modal
-        function openTab(evt, tabName) {
-            // Declare all variables
-            var i, tabcontent, tablinks;
+        // Submit the form
+        form.submit();
+    } else {
+        // Trigger form validation
+        form.reportValidity();
+    }
+}
 
-            // Get all elements with class="tabcontent" and hide them
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-
-            // Get all elements with class="tablinks" and remove the class "active"
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
-
-            // Show the current tab, and add an "active" class to the button that opened the tab
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
+// Function to submit the new customer form
+function submitNewCustomerForm() {
+    // Check if form is valid
+    const form = document.getElementById('new-customer-form');
+    if (form.checkValidity()) {
+        // Save cart data to the form
+        const cartJson = JSON.stringify(cart);
+        document.getElementById('cart_data_json_new').value = cartJson;
+        
+        // Save to session storage as backup
+        try {
+            sessionStorage.setItem('backup_cart', cartJson);
+            console.log('Cart saved to sessionStorage');
+        } catch(e) {
+            console.error('Failed to save to sessionStorage:', e);
         }
-    </script>
+        
+        // Debug output
+        console.log('Cart saved before form submission:', cartJson);
+        
+        // Submit the form
+        form.submit();
+    } else {
+        // Trigger form validation
+        form.reportValidity();
+    }
+}
+
+// Function to add item to cart
+function addToCart(id, name, price, quantity, maxQuantity) {
+    quantity = parseInt(quantity);
+    if (quantity <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+    
+    if (quantity > maxQuantity) {
+        alert(`Sorry, only ${maxQuantity} items in stock!`);
+        return;
+    }
+    
+    // Check if product already exists in cart
+    const existingItemIndex = cart.findIndex(item => item.id === id);
+    
+    if (existingItemIndex !== -1) {
+        // Update quantity if not exceeding stock
+        const newQuantity = cart[existingItemIndex].quantity + quantity;
+        if (newQuantity > maxQuantity) {
+            alert(`Sorry, adding ${quantity} more would exceed available stock. You already have ${cart[existingItemIndex].quantity} in your cart.`);
+            return;
+        }
+        cart[existingItemIndex].quantity = newQuantity;
+    } else {
+        // Add new item
+        cart.push({
+            id: id,
+            name: name,
+            price: price,
+            quantity: quantity,
+            maxQuantity: maxQuantity
+        });
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('cart', JSON.stringify(cart));
+    
+    // Update UI
+    updateCartDisplay();
+    updateCartBadge();
+    
+    // Show confirmation
+    alert(`${quantity} x ${name} added to cart!`);
+}
+
+// Function to remove item from cart
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    localStorage.setItem('cart', JSON.stringify(cart));
+    updateCartDisplay();
+    updateCartBadge();
+}
+
+// Function to clear cart
+function clearCart() {
+    if (confirm('Are you sure you want to clear your cart?')) {
+        cart = [];
+        localStorage.setItem('cart', JSON.stringify(cart));
+        updateCartDisplay();
+        updateCartBadge();
+    }
+}
+
+// Function to open checkout confirmation modal
+function checkoutConfirm() {
+    if (cart.length === 0) {
+        alert('Your cart is empty!');
+        return;
+    }
+    
+    document.getElementById('checkout-modal').style.display = 'block';
+}
+
+// Function to close checkout modal
+function closeModal() {
+    document.getElementById('checkout-modal').style.display = 'none';
+}
+
+// Function to close success modal
+function closeSuccessModal() {
+    document.getElementById('success-modal').style.display = 'none';
+}
+
+// Function to complete checkout with customer ID
+function completeCheckout(customerId) {
+    if (cart.length === 0) {
+        alert('Your cart is empty!');
+        return;
+    }
+    
+    // Set the cart data and customer ID in the hidden form fields
+    document.getElementById('cart_data').value = JSON.stringify(cart);
+    document.getElementById('customer_id').value = customerId;
+    
+    // Clear the cart from localStorage and sessionStorage before submitting
+    // This ensures the cart is cleared even if the page reload doesn't work
+    localStorage.removeItem('cart');
+    sessionStorage.removeItem('backup_cart');
+    
+    // Submit the form
+    document.getElementById('checkout-form').submit();
+}
+
+// Function to update cart display
+function updateCartDisplay() {
+    const cartItemsContainer = document.getElementById('cart-items');
+    const cartTotalElement = document.getElementById('cart-total');
+    
+    // Clear current items
+    cartItemsContainer.innerHTML = '';
+    
+    if (cart.length === 0) {
+        cartItemsContainer.innerHTML = '<p>Your cart is empty</p>';
+        cartTotalElement.textContent = '0.00';
+        return;
+    }
+    
+    let totalPrice = 0;
+    
+    // Add each item to the cart display with improved structure
+    cart.forEach((item, index) => {
+        const itemTotal = item.price * item.quantity;
+        totalPrice += itemTotal;
+        
+        const itemElement = document.createElement('div');
+        itemElement.className = 'cart-item';
+        itemElement.innerHTML = `
+            <div class="cart-item-info">
+                ${item.name} x ${item.quantity}
+            </div>
+            <div class="cart-item-actions">
+                <span>$${itemTotal.toFixed(2)}</span>
+                <span class="remove-item" onclick="removeFromCart(${index})">×</span>
+            </div>
+        `;
+        cartItemsContainer.appendChild(itemElement);
+    });
+    
+    // Update total
+    cartTotalElement.textContent = totalPrice.toFixed(2);
+}
+
+// Update cart badge with number of items
+function updateCartBadge() {
+    const badge = document.getElementById('cart-badge');
+    const itemCount = cart.reduce((total, item) => total + parseInt(item.quantity || 0), 0);
+    
+    badge.textContent = itemCount;
+    badge.style.display = itemCount > 0 ? 'inline' : 'none';
+}
+
+// Increment quantity input
+function incrementQuantity(inputId, max) {
+    const input = document.getElementById(inputId);
+    const currentVal = parseInt(input.value);
+    if (currentVal < max) {
+        input.value = currentVal + 1;
+    }
+}
+
+// Decrement quantity input
+function decrementQuantity(inputId) {
+    const input = document.getElementById(inputId);
+    const currentVal = parseInt(input.value);
+    if (currentVal > 1) {
+        input.value = currentVal - 1;
+    }
+}
+
+// Function to switch between tabs in the checkout modal
+function openTab(evt, tabName) {
+    // Declare all variables
+    var i, tabcontent, tablinks;
+
+    // Get all elements with class="tabcontent" and hide them
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    // Get all elements with class="tablinks" and remove the class "active"
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    // Show the current tab, and add an "active" class to the button that opened the tab
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+}
+</script>
 </body>
 </html>
 
