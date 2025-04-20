@@ -337,17 +337,37 @@ select {
     max-height: 300px;
     overflow-y: auto;
 }
+
 .cart-item {
     display: flex;
     justify-content: space-between;
-    padding: 5px 0;
+    padding: 8px 0;
     border-bottom: 1px solid #eee;
+    align-items: center; /* Center items vertically */
 }
+
+/* Add this new CSS for the cart item name and quantity */
+.cart-item-info {
+    flex: 1;
+    margin-right: 10px;
+}
+
+/* Style for the item price and remove button container */
+.cart-item-actions {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+/* Style the remove button */
 .remove-item {
     color: #f44336;
     cursor: pointer;
     margin-left: 10px;
+    font-size: 18px;
+    font-weight: bold;
 }
+
 .cart-total {
     margin-top: 10px;
     font-weight: bold;
@@ -824,16 +844,17 @@ select {
             
             // Show success modal if there's a success message
             <?php if(isset($success_message)): ?>
-            // Clear the cart after successful order
-            cart = [];
-            localStorage.setItem('cart', JSON.stringify(cart));
-            updateCartDisplay();
-            updateCartBadge();
-            
-            // Show success modal with the message
-            document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
-            document.getElementById('success-modal').style.display = 'block';
-            <?php endif; ?>
+                // Clear the cart after successful order
+                cart = [];
+                localStorage.setItem('cart', JSON.stringify(cart));
+                sessionStorage.removeItem('backup_cart'); // Add this line
+                updateCartDisplay();
+                updateCartBadge();
+
+                // Show success modal with the message
+                document.getElementById('success-message').textContent = "<?php echo $success_message; ?>";
+                document.getElementById('success-modal').style.display = 'block';
+                <?php endif; ?>
             
             // Check for backup cart in sessionStorage
             const backupCart = sessionStorage.getItem('backup_cart');
@@ -998,6 +1019,11 @@ select {
             document.getElementById('cart_data').value = JSON.stringify(cart);
             document.getElementById('customer_id').value = customerId;
             
+            // Clear the cart from localStorage and sessionStorage before submitting
+            // This ensures the cart is cleared even if the page reload doesn't work
+            localStorage.removeItem('cart');
+            sessionStorage.removeItem('backup_cart');
+            
             // Submit the form
             document.getElementById('checkout-form').submit();
         }
@@ -1018,7 +1044,7 @@ select {
             
             let totalPrice = 0;
             
-            // Add each item to the cart display
+            // Add each item to the cart display with improved structure
             cart.forEach((item, index) => {
                 const itemTotal = item.price * item.quantity;
                 totalPrice += itemTotal;
@@ -1026,13 +1052,12 @@ select {
                 const itemElement = document.createElement('div');
                 itemElement.className = 'cart-item';
                 itemElement.innerHTML = `
-                    <div>
-                        <span>${item.name}</span>
-                        <span> x ${item.quantity}</span>
+                    <div class="cart-item-info">
+                        ${item.name} x ${item.quantity}
                     </div>
-                    <div>
+                    <div class="cart-item-actions">
                         <span>$${itemTotal.toFixed(2)}</span>
-                        <span class="remove-item" onclick="removeFromCart(${index})">✕</span>
+                        <span class="remove-item" onclick="removeFromCart(${index})">×</span>
                     </div>
                 `;
                 cartItemsContainer.appendChild(itemElement);
