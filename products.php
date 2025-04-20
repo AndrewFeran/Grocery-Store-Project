@@ -160,7 +160,7 @@ try {
             border-bottom: 1px solid #ddd;
         }
         th {
-            background-color: #4CAF50;
+            background-color: #1e5631; /* Darker green to match navbar */
             color: white;
         }
         tr:hover {
@@ -180,11 +180,14 @@ try {
         }
         .search-container button {
             padding: 8px 16px;
-            background-color: #4CAF50;
+            background-color: #1e5631; /* Darker green */
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+        }
+        .search-container button:hover {
+            background-color: #2e7d41; /* Consistent hover state */
         }
         .filters {
             display: flex;
@@ -197,22 +200,22 @@ try {
             border-radius: 4px;
         }
         .add-to-cart {
-            background-color: #4CAF50;
-            color: black;
+            background-color: #1e5631; /* Darker green */
+            color: white; /* Changed from black to white for better contrast */
             border: none;
             padding: 8px 16px;
-            border-radius: 3px;
+            border-radius: 4px; /* Made consistent with other buttons */
             cursor: pointer;
-            min-width: 110px; /* Ensures button has enough space */
+            min-width: 110px;
             text-align: center;
-            white-space: nowrap; /* Keeps text on one line */
+            white-space: nowrap;
         }
         .add-to-cart:hover {
-            background-color: #45a049;
+            background-color: #2e7d41; /* Consistent hover state */
         }
         #cart-container {
             position: fixed;
-            top: 80px; /* Adjusted to be below navbar */
+            top: 80px;
             right: 20px;
             background-color: white;
             padding: 15px;
@@ -222,6 +225,7 @@ try {
             z-index: 1000;
             max-height: 80vh;
             overflow-y: auto;
+            border-top: 3px solid #1e5631; /* Added accent border */
         }
         #cart-items {
             margin-top: 10px;
@@ -235,7 +239,7 @@ try {
             border-bottom: 1px solid #eee;
         }
         .remove-item {
-            color: red;
+            color: #f44336;
             cursor: pointer;
             margin-left: 10px;
         }
@@ -256,22 +260,18 @@ try {
             cursor: pointer;
         }
         .checkout-btn {
-            background-color: #4CAF50;
+            background-color: #1e5631; /* Darker green */
             color: white;
+        }
+        .checkout-btn:hover {
+            background-color: #2e7d41; /* Consistent hover state */
         }
         .clear-btn {
             background-color: #f44336;
             color: white;
         }
-        .cart-badge {
-            background-color: #f44336;
-            color: white;
-            border-radius: 50%;
-            padding: 2px 6px;
-            font-size: 12px;
-            position: relative;
-            top: -10px;
-            left: -5px;
+        .clear-btn:hover {
+            background-color: #e53935; /* Added hover state */
         }
         .quantity-control {
             display: flex;
@@ -290,42 +290,28 @@ try {
             height: 25px;
             cursor: pointer;
             font-weight: bold;
+            border-radius: 4px; /* Made consistent */
         }
-        /* Cart toggle button */
-        #cart-toggle {
-            position: fixed;
-            top: 15px;
-            right: 20px;
-            background-color: #ffcc00;
-            color: #333;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1001;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        #cart-toggle:hover {
-            background-color: #ffd633;
+        .quantity-control button:hover {
+            background-color: #ccc; /* Added hover state */
         }
         /* Success message styling */
         .success-message {
-            background-color: #dff0d8;
-            color: #3c763d;
+            background-color: #d4edda;
+            color: #155724;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
-            border: 1px solid #d6e9c6;
+            border: 1px solid #c3e6cb;
         }
         /* Error message styling */
         .error-message {
-            background-color: #f2dede;
-            color: #a94442;
+            background-color: #f8d7da;
+            color: #721c24;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
-            border: 1px solid #ebccd1;
+            border: 1px solid #f5c6cb;
         }
         /* Modal styling */
         .modal {
@@ -347,9 +333,10 @@ try {
             width: 400px;
             border-radius: 5px;
             text-align: center;
+            border-top: 3px solid #1e5631; /* Added accent border */
         }
         .modal h2 {
-            color: #4CAF50;
+            color: #1e5631; /* Darker green */
             margin-top: 0;
         }
         .modal p {
@@ -357,11 +344,15 @@ try {
         }
         .modal button {
             padding: 10px 20px;
-            background-color: #4CAF50;
+            background-color: #1e5631; /* Darker green */
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .modal button:hover {
+            background-color: #2e7d41; /* Consistent hover state */
         }
         /* Disabled state for buttons */
         .disabled {
@@ -370,12 +361,12 @@ try {
         }
         /* Out of stock styling */
         .out-of-stock {
-            color: #a94442;
+            color: #721c24;
             font-weight: bold;
         }
         /* Store balance styling */
         .store-info {
-            background-color: #eaf7fd;
+            background-color: #e9f5fb;
             padding: 10px 15px;
             border-radius: 5px;
             margin-bottom: 20px;

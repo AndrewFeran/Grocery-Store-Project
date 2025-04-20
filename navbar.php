@@ -3,8 +3,9 @@
   $currentPage = basename($_SERVER['PHP_SELF']);
 ?>
 <style>
+  /* Updated navbar.php CSS */
   nav {
-    background-color: #4CAF50;
+    background-color: #1e5631; /* Darker green */
     padding: 15px 20px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     position: sticky;
@@ -34,11 +35,11 @@
   }
 
   nav ul li a:hover {
-    background-color: #45a049;
+    background-color: #2e7d41; /* Slightly lighter hover state */
   }
 
   nav ul li a.active {
-    background-color: #388E3C;
+    background-color: #133920; /* Even darker for active state */
     border-bottom: 2px solid #ffcc00;
   }
 
@@ -59,6 +60,37 @@
   .invisible-link:hover {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* Cart button styling to match navbar */
+  #cart-toggle {
+    position: relative;
+    top: 0;
+    right: 0;
+    background-color: #133920;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+  }
+
+  #cart-toggle:hover {
+    background-color: #2e7d41;
+  }
+
+  .cart-badge {
+    background-color: #f44336;
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 12px;
+    margin-left: 5px;
   }
 </style>
 <nav>
