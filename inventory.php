@@ -6,13 +6,8 @@ if (!isset($_SESSION['auto_restock'])) {
 
 // Handle toggle form
 if (isset($_POST['toggle_auto_restock'])) {
-    if (isset($_POST['auto_restock'])) {
-        $_SESSION['auto_restock'] = true;
-    } else {
-        $_SESSION['auto_restock'] = false;
-    }
+    $_SESSION['auto_restock'] = isset($_POST['auto_restock']);
 }
-
  include 'navbar.php'; ?>
 <?php
 // Enable error reporting for debugging
@@ -529,10 +524,10 @@ select {
                 
                 
 <form method="POST" style="margin-bottom: 1em;">
-    <label>
-        <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?php if ($_SESSION['auto_restock']) echo 'checked'; ?>>
-        Enable Automatic Restock
-    </label>
+    <form method="POST">
+    <input type="hidden" name="toggle_auto_restock" value="1">
+    <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?php if ($_SESSION['auto_restock']) echo 'checked'; ?>>
+    </form>
     <input type="hidden" name="toggle_auto_restock" value="1">
 </form>
 
