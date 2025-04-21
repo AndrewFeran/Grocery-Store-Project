@@ -73,6 +73,24 @@ try {
                 $name_stmt = $conn->prepare($name_sql);
                 $name_stmt->execute([$product_id]);
                 $product_name = $name_stmt->fetchColumn();
+
+                // Get the Buy_Price of the product
+                $price_sql = "SELECT Buy_Price FROM Product WHERE ID = ?";
+                $price_stmt = $conn->prepare($price_sql);
+                $price_stmt->execute([$product_id]);
+                $buy_price = $price_stmt->fetchColumn();
+
+                if (!$buy_price) {
+                    throw new Exception("Failed to retrieve Buy Price for product ID $product_id.");
+                }
+
+                // Calculate total cost
+                $total_cost = $buy_price * $quantity;
+
+                // Update store balance (assuming Store ID is 1)
+                $balance_sql = "UPDATE Store SET Balance = Balance - ? WHERE ID = 1";
+                $balance_stmt = $conn->prepare($balance_sql);
+                $balance_stmt->execute([$total_cost]);
                 
                 // Commit transaction
                 $conn->commit();
@@ -83,6 +101,8 @@ try {
                 $update_stmt->execute([$quantity, $product_id]);
                 
                 $success_message = "Added " . $quantity . " units of " . $product_name . " to inventory.";
+
+
             } catch(PDOException $e) {
                 // Rollback transaction in case of error
                 $conn->rollBack();
