@@ -48,16 +48,6 @@ try {
             foreach($items as $item) {
                 $restore_stmt->execute([$item['quantity'], $item['ID']]);
             }
-            
-            // Delete order items
-            $delete_items_sql = "DELETE FROM OrderItem WHERE Order_ID = ?";
-            $delete_items_stmt = $conn->prepare($delete_items_sql);
-            $delete_items_stmt->execute([$order_id]);
-            
-            // Delete the order
-            $delete_order_sql = "DELETE FROM `Order` WHERE ID = ?";
-            $delete_order_stmt = $conn->prepare($delete_order_sql);
-            $delete_order_stmt->execute([$order_id]);
 
             // Get total cost of the order to adjust store balance
             $total_sql = "SELECT SUM(p.Sell_Price) AS total
@@ -75,6 +65,16 @@ try {
             $balance_stmt->execute([$total]);
             }
             
+            // Delete order items
+            $delete_items_sql = "DELETE FROM OrderItem WHERE Order_ID = ?";
+            $delete_items_stmt = $conn->prepare($delete_items_sql);
+            $delete_items_stmt->execute([$order_id]);
+            
+            // Delete the order
+            $delete_order_sql = "DELETE FROM `Order` WHERE ID = ?";
+            $delete_order_stmt = $conn->prepare($delete_order_sql);
+            $delete_order_stmt->execute([$order_id]);
+
             // Commit transaction
             $conn->commit();
             
