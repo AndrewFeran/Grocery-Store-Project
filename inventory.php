@@ -35,11 +35,32 @@ try {
             $conn->beginTransaction();
             
             try {
-                // Get the product category to find a matching supplier
-                $category_sql = "SELECT Category FROM Product WHERE ID = ?";
-                $category_stmt = $conn->prepare($category_sql);
-                $category_stmt->execute([$product_id]);
-                $product_category = $category_stmt->fetchColumn();
+                // Get the product details including buy price
+                $product_sql = "SELECT ID, Name, Buy_Price, Category FROM Product WHERE ID = ?";
+                $product_stmt = $conn->prepare($product_sql);
+                $product_stmt->execute([$product_id]);
+                $product = $product_stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$product) {
+                    throw new Exception("Product not found.");
+                }
+                
+                $product_name = $product['Name'];
+                $buy_price = $product['Buy_Price'];
+                $product_category = $product['Category'];
+                
+                // Calculate total cost
+                $total_cost = $quantity * $buy_price;
+                
+                // Check if store has enough balance
+                $balance_check_sql = "SELECT Balance FROM Store WHERE ID = 1";
+                $balance_check_stmt = $conn->prepare($balance_check_sql);
+                $balance_check_stmt->execute();
+                $current_balance = $balance_check_stmt->fetchColumn();
+                
+                if ($current_balance < $total_cost) {
+                    throw new Exception("Insufficient store balance to complete this restock. Required: $" . number_format($total_cost, 2) . ", Available: $" . number_format($current_balance, 2));
+                }
                 
                 // Find a supplier that matches the product category
                 $supplier_sql = "SELECT ID FROM Supplier WHERE Category = ? LIMIT 1";
@@ -68,22 +89,21 @@ try {
                 // Get the new restock request ID
                 $restock_id = $conn->lastInsertId();
                 
-                // Get product name
-                $name_sql = "SELECT Name FROM Product WHERE ID = ?";
-                $name_stmt = $conn->prepare($name_sql);
-                $name_stmt->execute([$product_id]);
-                $product_name = $name_stmt->fetchColumn();
-                
-                // Commit transaction
-                $conn->commit();
+                // Update store balance by deducting the total cost
+                $update_balance_sql = "UPDATE Store SET Balance = Balance - ? WHERE ID = 1";
+                $update_balance_stmt = $conn->prepare($update_balance_sql);
+                $update_balance_stmt->execute([$total_cost]);
                 
                 // Process the restock immediately (simpler approach until the table is extended)
                 $update_sql = "UPDATE Product SET Quantity = Quantity + ? WHERE ID = ?";
                 $update_stmt = $conn->prepare($update_sql);
                 $update_stmt->execute([$quantity, $product_id]);
                 
-                $success_message = "Added " . $quantity . " units of " . $product_name . " to inventory.";
-            } catch(PDOException $e) {
+                // Commit transaction
+                $conn->commit();
+                
+                $success_message = "Added " . $quantity . " units of " . $product_name . " to inventory. Total cost: $" . number_format($total_cost, 2) . " has been deducted from store balance.";
+            } catch(Exception $e) {
                 // Rollback transaction in case of error
                 $conn->rollBack();
                 $error_message = "Error processing restock: " . $e->getMessage();
@@ -134,19 +154,6 @@ try {
     $category_stmt = $conn->prepare($category_sql);
     $category_stmt->execute();
     $category_stats = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get recent restock requests - removed this section since we now handle it in the tab
-    /*
-    $recent_restocks = [];
-    try {
-        $recent_sql = "SELECT ID, Quantity FROM RestockRequest ORDER BY ID DESC LIMIT 10";
-        $recent_stmt = $conn->prepare($recent_sql);
-        $recent_stmt->execute();
-        $recent_restocks = $recent_stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch(PDOException $e) {
-        // Silently fail - this is expected until the table is updated
-    }
-    */
     
 } catch(PDOException $e) {
     echo "<div style='color:red; padding:20px; background-color:#ffeeee; border:1px solid #ff0000;'>";
@@ -754,7 +761,7 @@ select {
                     
                     // Hide all tabs
                     for (var j = 0; j < tabContents.length; j++) {
-                        tabContents[j].style.display = 'none';
+                        tabContents[j].classList.remove('active');
                     }
                     
                     // Remove active class from all buttons
@@ -763,14 +770,10 @@ select {
                     }
                     
                     // Show the selected tab
-                    document.getElementById(tabId).style.display = 'block';
+                    document.getElementById(tabId).classList.add('active');
                     this.classList.add('active');
                 });
             }
-            
-            // Show first tab by default
-            tabContents[0].style.display = 'block';
-            tabButtons[0].classList.add('active');
             
             // Set up quantity input for restock form
             var quantityInput = document.getElementById('quantity');
@@ -816,7 +819,7 @@ select {
             var buyPrice = document.getElementById('buy_price').value;
             var totalCost = quantity * buyPrice;
             
-            document.getElementById('total_cost').value = '$' + totalCost.toFixed(2);
+            document.getElementById('total_cost').value = ' + totalCost.toFixed(2);
         }
     </script>
 </body>
