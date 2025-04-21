@@ -6,8 +6,13 @@ if (!isset($_SESSION['auto_restock'])) {
 
 // Handle toggle form
 if (isset($_POST['toggle_auto_restock'])) {
-    $_SESSION['auto_restock'] = isset($_POST['auto_restock']);
+    if (isset($_POST['auto_restock'])) {
+        $_SESSION['auto_restock'] = true;
+    } else {
+        $_SESSION['auto_restock'] = false;
+    }
 }
+
  include 'navbar.php'; ?>
 <?php
 // Enable error reporting for debugging
