@@ -1,6 +1,4 @@
 <?php
-session_start();
-
 // Default toggle state
 if (!isset($_SESSION['auto_restock'])) {
     $_SESSION['auto_restock'] = false;
