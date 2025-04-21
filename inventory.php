@@ -525,7 +525,7 @@ select {
                 
 <form method="POST" style="margin-bottom: 1em;">
     <label>
-        <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?= $_SESSION['auto_restock'] ? 'checked' : '' ?>>
+        <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?php if ($_SESSION['auto_restock']) echo 'checked'; ?>>
         Enable Automatic Restock
     </label>
     <input type="hidden" name="toggle_auto_restock" value="1">
