@@ -1,2 +1,2 @@
 <?php include 'navbar.php'; ?>
-Hello World!
+<img src="../img/home.png" alt="That's me!">
