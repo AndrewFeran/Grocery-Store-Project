@@ -35,10 +35,10 @@ try {
             $conn->beginTransaction();
             
             try {
-                // Create new restock request - simple version that works with existing table
-                $restock_sql = "INSERT INTO RestockRequest (Quantity) VALUES (?)";
+                // Create new restock request - updated for the modified table structure
+                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Quantity) VALUES (?, ?)";
                 $restock_stmt = $conn->prepare($restock_sql);
-                $restock_stmt->execute([$quantity]);
+                $restock_stmt->execute([$product_id, $quantity]);
                 
                 // Get the new restock request ID
                 $restock_id = $conn->lastInsertId();
