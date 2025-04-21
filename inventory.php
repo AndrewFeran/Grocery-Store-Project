@@ -1,4 +1,16 @@
-<?php include 'navbar.php'; ?>
+<?php
+session_start();
+
+// Default toggle state
+if (!isset($_SESSION['auto_restock'])) {
+    $_SESSION['auto_restock'] = false;
+}
+
+// Handle toggle form
+if (isset($_POST['toggle_auto_restock'])) {
+    $_SESSION['auto_restock'] = isset($_POST['auto_restock']);
+}
+ include 'navbar.php'; ?>
 <?php
 // Enable error reporting for debugging
 error_reporting(E_ALL);
@@ -512,7 +524,16 @@ select {
                     </form>
                 </div>
                 
-                <table>
+                
+<form method="POST" style="margin-bottom: 1em;">
+    <label>
+        <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?= $_SESSION['auto_restock'] ? 'checked' : '' ?>>
+        Enable Automatic Restock
+    </label>
+    <input type="hidden" name="toggle_auto_restock" value="1">
+</form>
+
+<table>
                     <thead>
                         <tr>
                             <th>Product Name</th>
