@@ -35,10 +35,35 @@ try {
             $conn->beginTransaction();
             
             try {
-                // Create new restock request - updated for the modified table structure
-                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Quantity) VALUES (?, ?)";
+                // Get the product category to find a matching supplier
+                $category_sql = "SELECT Category FROM Product WHERE ID = ?";
+                $category_stmt = $conn->prepare($category_sql);
+                $category_stmt->execute([$product_id]);
+                $product_category = $category_stmt->fetchColumn();
+                
+                // Find a supplier that matches the product category
+                $supplier_sql = "SELECT ID FROM Supplier WHERE Category = ? LIMIT 1";
+                $supplier_stmt = $conn->prepare($supplier_sql);
+                $supplier_stmt->execute([$product_category]);
+                $supplier_id = $supplier_stmt->fetchColumn();
+                
+                // If no matching supplier, get any supplier
+                if (!$supplier_id) {
+                    $any_supplier_sql = "SELECT ID FROM Supplier LIMIT 1";
+                    $any_supplier_stmt = $conn->prepare($any_supplier_sql);
+                    $any_supplier_stmt->execute();
+                    $supplier_id = $any_supplier_stmt->fetchColumn();
+                    
+                    // If still no supplier, show error
+                    if (!$supplier_id) {
+                        throw new Exception("No suppliers found in the database. Please add suppliers first.");
+                    }
+                }
+                
+                // Create new restock request with product and supplier
+                $restock_sql = "INSERT INTO RestockRequest (Product_ID, Supplier_ID, Quantity) VALUES (?, ?, ?)";
                 $restock_stmt = $conn->prepare($restock_sql);
-                $restock_stmt->execute([$product_id, $quantity]);
+                $restock_stmt->execute([$product_id, $supplier_id, $quantity]);
                 
                 // Get the new restock request ID
                 $restock_id = $conn->lastInsertId();
