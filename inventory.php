@@ -135,7 +135,8 @@ try {
     $category_stmt->execute();
     $category_stats = $category_stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Try to get recent restock requests (may fail if table structure doesn't exist)
+    // Get recent restock requests - removed this section since we now handle it in the tab
+    /*
     $recent_restocks = [];
     try {
         $recent_sql = "SELECT ID, Quantity FROM RestockRequest ORDER BY ID DESC LIMIT 10";
@@ -145,6 +146,7 @@ try {
     } catch(PDOException $e) {
         // Silently fail - this is expected until the table is updated
     }
+    */
     
 } catch(PDOException $e) {
     echo "<div style='color:red; padding:20px; background-color:#ffeeee; border:1px solid #ff0000;'>";
@@ -590,30 +592,111 @@ select {
             
             <!-- Restock History Tab -->
             <div id="RestockHistoryTab" class="tabcontent">
-                <h2>Recent Restock History</h2>
-                <?php if(empty($recent_restocks)): ?>
-                <p>No restock history available. Once you update the database schema, more information will be shown here.</p>
+                <h2>Restock History</h2>
+                
+                <!-- Add some filters for the history -->
+                <div class="filters">
+                    <form action="" method="GET">
+                        <select name="history_filter" onchange="this.form.submit()">
+                            <option value="all">All Restocks</option>
+                            <option value="recent">Recent (Last 7 Days)</option>
+                            <option value="largest">Largest Quantities</option>
+                        </select>
+                    </form>
+                </div>
+                
+                <?php
+                // Get detailed restock history with related information
+                try {
+                    $history_sql = "SELECT r.ID, r.Product_ID, r.Supplier_ID, r.Quantity, 
+                                         COALESCE(r.RequestDate, NOW()) as RequestDate,
+                                         p.Name as ProductName, p.Category as ProductCategory, 
+                                         p.Buy_Price, p.Sell_Price,
+                                         s.Name as SupplierName, s.Category as SupplierCategory
+                                  FROM RestockRequest r
+                                  LEFT JOIN Product p ON r.Product_ID = p.ID
+                                  LEFT JOIN Supplier s ON r.Supplier_ID = s.ID
+                                  ORDER BY r.ID DESC 
+                                  LIMIT 50";
+                    $history_stmt = $conn->prepare($history_sql);
+                    $history_stmt->execute();
+                    $restock_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    if(empty($restock_history)): 
+                ?>
+                <p>No restock history available yet.</p>
                 <?php else: ?>
                 <table>
                     <thead>
                         <tr>
                             <th>Request #</th>
+                            <th>Product</th>
+                            <th>Supplier</th>
+                            <th>Category</th>
                             <th>Quantity</th>
+                            <th>Total Cost</th>
+                            <th>Date</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        foreach($recent_restocks as $restock) {
+                        foreach($restock_history as $restock) {
+                            // Ensure values exist or provide defaults
+                            $productName = $restock['ProductName'] ?? 'Unknown Product';
+                            $supplierName = $restock['SupplierName'] ?? 'Unknown Supplier';
+                            $category = $restock['ProductCategory'] ?? 'Unknown';
+                            $buyPrice = $restock['Buy_Price'] ?? 0;
+                            $totalCost = $restock['Quantity'] * $buyPrice;
+                            $requestDate = !empty($restock['RequestDate']) ? date('M d, Y', strtotime($restock['RequestDate'])) : 'Unknown';
+                            
                             echo "<tr>";
                             echo "<td>#" . $restock['ID'] . "</td>";
+                            echo "<td>" . htmlspecialchars($productName) . "</td>";
+                            echo "<td>" . htmlspecialchars($supplierName) . "</td>";
+                            echo "<td>" . htmlspecialchars($category) . "</td>";
                             echo "<td>" . $restock['Quantity'] . "</td>";
+                            echo "<td>$" . number_format($totalCost, 2) . "</td>";
+                            echo "<td>" . $requestDate . "</td>";
                             echo "</tr>";
                         }
                         ?>
                     </tbody>
                 </table>
-                <p>Note: Run the database update script to add more details to restock requests.</p>
                 <?php endif; ?>
+                <?php
+                } catch(PDOException $e) {
+                    echo "<div class='error-message'>";
+                    echo "<p>Unable to retrieve detailed restock history. Your database structure may need to be updated.</p>";
+                    echo "<p>Error details: " . $e->getMessage() . "</p>";
+                    echo "</div>";
+                    
+                    // Show simple restock history as fallback
+                    try {
+                        $simple_sql = "SELECT ID, Quantity FROM RestockRequest ORDER BY ID DESC LIMIT 10";
+                        $simple_stmt = $conn->prepare($simple_sql);
+                        $simple_stmt->execute();
+                        $simple_history = $simple_stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        if (!empty($simple_history)) {
+                            echo "<h3>Basic Restock Records</h3>";
+                            echo "<table>";
+                            echo "<thead><tr><th>Request #</th><th>Quantity</th></tr></thead>";
+                            echo "<tbody>";
+                            
+                            foreach($simple_history as $record) {
+                                echo "<tr>";
+                                echo "<td>#" . $record['ID'] . "</td>";
+                                echo "<td>" . $record['Quantity'] . "</td>";
+                                echo "</tr>";
+                            }
+                            
+                            echo "</tbody></table>";
+                        }
+                    } catch(PDOException $inner_e) {
+                        echo "<p>No restock history available.</p>";
+                    }
+                }
+                ?>
             </div>
         </div>
     </div>
