@@ -523,13 +523,14 @@ select {
                 </div>
                 
                 
-<form method="POST" style="display:inline;">
-  <input type="hidden" name="toggle_auto_restock" value="1">
-  <label>
-    <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?php if (!empty($_SESSION['auto_restock'])) echo 'checked'; ?>>
-    Auto Restock
-  </label>
-</form>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="toggle_auto_restock" value="1">
+                    <label>
+                        <input type="checkbox" name="auto_restock" onchange="this.form.submit()" <?php if (!empty($_SESSION['auto_restock'])) echo 'checked'; ?>>
+                        Auto Restock
+                    </label>
+                </form>
+
 
 <table>
                     <thead>
