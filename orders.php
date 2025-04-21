@@ -58,6 +58,22 @@ try {
             $delete_order_sql = "DELETE FROM `Order` WHERE ID = ?";
             $delete_order_stmt = $conn->prepare($delete_order_sql);
             $delete_order_stmt->execute([$order_id]);
+
+            // Get total cost of the order to adjust store balance
+            $total_sql = "SELECT SUM(p.Sell_Price) AS total
+            FROM OrderItem oi
+            JOIN Product p ON oi.Product_ID = p.ID
+            WHERE oi.Order_ID = ?";
+            $total_stmt = $conn->prepare($total_sql);
+            $total_stmt->execute([$order_id]);
+            $total = $total_stmt->fetchColumn();
+
+            if ($total) {
+            // Subtract total from store balance (assuming Store ID = 1)
+            $balance_sql = "UPDATE Store SET Balance = Balance - ? WHERE ID = 1";
+            $balance_stmt = $conn->prepare($balance_sql);
+            $balance_stmt->execute([$total]);
+            }
             
             // Commit transaction
             $conn->commit();
