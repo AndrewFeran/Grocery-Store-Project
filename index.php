@@ -12,24 +12,67 @@
             padding: 0;
             background-color: #f4f4f4;
         }
-        .container {
-            max-width: 1200px;
-            margin: 20px auto;
-            text-align: center;
+        .hero-section {
+            width: 100%;
+            height: calc(100vh - 70px); /* Full viewport height minus navbar */
+            background-image: url('/home.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .home-image {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3); /* Semi-transparent overlay */
+        }
+        .content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            color: white;
+            max-width: 800px;
+            padding: 20px;
+        }
+        .content h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .content p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        .btn {
+            display: inline-block;
+            background-color: #1e5631;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #2e7d41;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <img src="/home.png" alt="Welcome to PubliCS" class="home-image">
+    <div class="hero-section">
+        <div class="overlay"></div>
+        <div class="content">
+            <h1>Welcome to PubliCS</h1>
+            <p>Your one-stop shop for quality products</p>
+            <a href="/products.php" class="btn">View Products</a>
+        </div>
     </div>
 </body>
 </html>
