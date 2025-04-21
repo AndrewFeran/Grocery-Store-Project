@@ -24,7 +24,7 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Handle restock request if form submitted
-    if(isset($_POST['submit_restock']) && isset($_POST['product_id']) && isset($_POST['quantity'])) {
+    if(isset($_POST['submit_restock']) && isset($_POST['product_id']) && isset($_POST['quantity']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $product_id = $_POST['product_id'];
         $quantity = (int)$_POST['quantity'];
         
@@ -785,6 +785,11 @@ select {
                     closeRestockModal();
                 }
             });
+            
+            // Prevent form resubmission on page refresh
+            if (window.history.replaceState) {
+                window.history.replaceState(null, null, window.location.href);
+            }
         });
         
         // Function to open restock modal
